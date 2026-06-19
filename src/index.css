@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 0 0% 98%;
+    --surface: 0 0% 100%;
+    --border: 220 13% 91%;
+    --text: 222 47% 11%;
+    --text-muted: 215 16% 47%;
+    --scrollbar-track: 220 13% 94%;
+    --scrollbar-thumb: 220 13% 80%;
+  }
+  .dark {
+    --bg: 222 47% 8%;
+    --surface: 222 47% 11%;
+    --border: 222 47% 16%;
+    --text: 210 40% 96%;
+    --text-muted: 215 16% 57%;
+    --scrollbar-track: 222 47% 12%;
+    --scrollbar-thumb: 222 47% 22%;
+  }
+
+  * {
+    @apply border-[hsl(var(--border))];
+  }
+
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    background: hsl(var(--bg));
+    color: hsl(var(--text));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--scrollbar-track));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--scrollbar-thumb));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--text-muted));
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-[hsl(var(--surface))] border border-[hsl(var(--border))] rounded-2xl;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 text-sm;
+  }
+  .btn-secondary {
+    @apply btn bg-[hsl(var(--surface))] border border-[hsl(var(--border))] hover:border-brand-400 text-[hsl(var(--text))] px-4 py-2 text-sm;
+  }
+  .btn-ghost {
+    @apply btn hover:bg-[hsl(var(--border))/50] text-[hsl(var(--text-muted))] px-3 py-2 text-sm;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm;
+  }
+  .input {
+    @apply w-full appearance-none rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-3 py-2 text-sm text-[hsl(var(--text))] placeholder-[hsl(var(--text-muted))] transition-colors focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
+    color: hsl(var(--text));
+    background-color: hsl(var(--surface));
+  }
+  .label {
+    @apply text-xs font-medium text-[hsl(var(--text-muted))] uppercase tracking-wide;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  .page-container {
+    @apply h-full flex flex-col overflow-hidden;
+  }
+  .page-header {
+    @apply flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0;
+  }
+  .page-content {
+    @apply flex-1 overflow-y-auto px-6 py-4;
+  }
+  .section-title {
+    @apply text-sm font-semibold text-[hsl(var(--text-muted))] uppercase tracking-wider;
+  }
+  .amount-positive {
+    @apply text-green-600 dark:text-green-400;
+  }
+  .amount-negative {
+    @apply text-red-500 dark:text-red-400;
+  }
+}
+
+/* Recharts overrides */
+.recharts-tooltip-wrapper {
+  @apply !shadow-modal !rounded-xl overflow-hidden;
+}
+.recharts-default-tooltip {
+  @apply !bg-[hsl(var(--surface))] !border-[hsl(var(--border))] !rounded-xl;
+}
