@@ -2,31 +2,26 @@
 
 A beautiful, modern desktop application for managing your personal finances. Built with **Tauri**, **React**, **TypeScript**, and **Rust**, ManMoney provides a powerful yet intuitive interface to track transactions, budgets, savings goals, and analyze your spending patterns.
 
-![TypeScript](https://img.shields.io/badge/TypeScript-74.6%25-3178c6?style=flat-square)
-![Rust](https://img.shields.io/badge/Rust-21.4%25-ce422b?style=flat-square)
-![CSS](https://img.shields.io/badge/CSS-2.9%25-563d7c?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-
 ## Features
 
-### 💰 Core Finance Management
+### Core Finance Management
 - **Multi-Account Support** – Manage cash, bank accounts, credit cards, and more
 - **Transaction Tracking** – Record income, expenses, and transfers with detailed categorization
 - **Smart Categories** – Pre-configured categories with custom icons and colors for both income and expenses
 - **Recurring Transactions** – Set up automatic recurring payments and income with flexible frequencies
 
-### 📊 Analytics & Insights
+### Analytics & Insights
 - **Dashboard Overview** – Real-time view of total balance, monthly income/expenses, and net worth
 - **Spending Analysis** – Visualize daily cash flow and top spending categories
 - **Financial Health Score** – Get a quick assessment of your financial wellness (0-100)
 - **Daily Cash Flow Charts** – Track income vs. expenses trends throughout the month
 
-### 💳 Budget & Savings
+### Budget & Savings
 - **Monthly Budgets** – Set category-based spending limits and monitor progress
 - **Savings Goals** – Create and track progress toward financial goals with deadlines and notes
 - **Budget Health Indicator** – Visual indicator showing budget usage percentage
 
-### 📝 Additional Features
+### Additional Features
 - **Advanced Search** – Filter transactions by account, category, date range, keywords, and more
 - **Payment Methods** – Track payment methods (cash, card, bank transfer, etc.)
 - **Tags & Notes** – Add detailed notes and custom tags to transactions
@@ -283,15 +278,15 @@ Contributions are welcome! To contribute:
 ## Roadmap
 
 Planned features:
-- [ ] Cloud backup/sync
-- [ ] Mobile app
-- [ ] Bill reminders
-- [ ] Investment tracking
-- [ ] Multi-currency support
-- [ ] Receipt scanning (OCR)
-- [ ] Budget automation
-- [ ] Financial reports (PDF export)
-- [ ] Data visualization improvements
+- Cloud backup/sync
+- Mobile app
+- Bill reminders
+- Investment tracking
+- Multi-currency support
+- Receipt scanning (OCR)
+- Budget automation
+- Financial reports (PDF export)
+- Data visualization improvements
 
 ## License
 
@@ -313,4 +308,4 @@ If you encounter issues or have feature requests:
 
 ---
 
-**Happy budgeting! 💰** Make managing your money simple and enjoyable.
+Make managing your money simple and enjoyable.
