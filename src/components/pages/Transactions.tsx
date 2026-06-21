@@ -44,7 +44,7 @@ function TransactionForm({ tx, onSave, onCancel }: {
     setSaving(true);
     try {
       const catId = type === 'transfer'
-        ? (categories.find(c => c.name === 'Other Income' || c.name === 'Other Expense')?.id ?? categories[0].id)
+        ? (categories.find(c => c.name === 'Other Income' || c.name === 'Other Expense')?.id ?? categories[0]?.id ?? '')
         : categoryId;
       if (tx) {
         await api.transactions.update({

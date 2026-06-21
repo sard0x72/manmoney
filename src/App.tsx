@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { isTauri } from '@tauri-apps/api/core';
 import { useAppStore } from './store/useAppStore';
 import { Sidebar } from './components/layout/Sidebar';
 import { Toast } from './components/ui/Toast';
@@ -24,8 +25,27 @@ const PAGE_MAP = {
   settings: Settings,
 } as const;
 
+function NotTauriScreen() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-[hsl(var(--bg))]">
+      <div className="text-center max-w-sm px-6">
+        <div className="text-5xl mb-4">🖥️</div>
+        <h1 className="text-xl font-bold text-[hsl(var(--text))] mb-2">Desktop App Required</h1>
+        <p className="text-sm text-[hsl(var(--text-muted))] mb-6">
+          ManMoney must run as a desktop application. Open a terminal in the project folder and run:
+        </p>
+        <code className="block bg-[hsl(var(--surface))] border border-[hsl(var(--border))] rounded-xl px-4 py-3 text-sm font-mono text-[hsl(var(--text))]">
+          npm run tauri dev
+        </code>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const { currentPage, isDark, fetchAll, loading } = useAppStore();
+
+  if (!isTauri()) return <NotTauriScreen />;
 
   useEffect(() => {
     if (isDark) document.documentElement.classList.add('dark');

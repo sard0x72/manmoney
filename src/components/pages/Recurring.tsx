@@ -30,7 +30,7 @@ function RecurringForm({ onSave, onCancel }: { onSave: () => void; onCancel: () 
     if (!accountId) return showToast('Select an account', 'error');
     setSaving(true);
     try {
-      const catId = categoryId || filteredCategories[0]?.id || categories[0].id;
+      const catId = categoryId || filteredCategories[0]?.id || categories[0]?.id || '';
       await api.recurring.create({
         account_id: accountId, category_id: catId, transaction_type: type,
         amount: amt, payee, notes, payment_method: method, frequency, start_date: startDate,

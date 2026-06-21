@@ -8,7 +8,7 @@ import { EmptyState } from '../ui/EmptyState';
 import type { Account } from '../../types';
 
 const COLORS = ['#6174f5','#22c55e','#ef4444','#f97316','#a855f7','#06b6d4','#eab308','#ec4899','#14b8a6','#3b82f6'];
-const CURRENCIES = ['USD','EUR','GBP','JPY','CAD','AUD','CHF','INR','BRL','MXN'];
+const CURRENCIES = ['USD','EUR','GBP','JPY','CAD','AUD','CHF','INR','BRL','MXN','UZS'];
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   cash: Wallet,
