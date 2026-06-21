@@ -2,6 +2,32 @@
 
 Common issues and how to fix them.
 
+## Windows says "Windows protected your PC" when I run the installer
+
+This is Windows SmartScreen. It appears because ManMoney is not commercially code-signed, not because anything is wrong with the file.
+
+**Fix:** Click **More info** in the warning dialog, then click **Run anyway**. The installer will proceed normally.
+
+## macOS says the app is from an unidentified developer / can't be opened
+
+macOS Gatekeeper blocks apps that haven't been notarized through Apple's paid developer program. ManMoney is safe — it just doesn't have that certificate.
+
+**Fix (easiest):** Right-click the ManMoney icon in Applications → **Open** → click **Open** in the dialog that appears.
+
+**Fix (alternative):** Open **System Settings** → **Privacy & Security**, scroll down to the message about ManMoney being blocked, and click **Open Anyway**.
+
+You only need to do this once. After the first launch, macOS opens the app normally.
+
+## macOS says the app is "damaged and can't be opened"
+
+This can happen if macOS quarantined the file during download. Open Terminal and run:
+
+```bash
+xattr -cr /Applications/ManMoney.app
+```
+
+Then try opening the app again.
+
 ## The app shows "Desktop App Required" / nothing loads
 
 **Cause:** You launched only the web frontend (for example with `npm run dev`), so the desktop data layer isn't running. None of the data features work in that mode.

@@ -32,12 +32,12 @@ The sidebar on the left is how you move around. Each item there has its own page
 
 ## New here?
 
-Start with [[Getting Started]]. It covers how to launch the app, what you get on first run, and the first few things worth setting up.
+Start with [[Getting Started]]. It explains how to download and install the app on Windows, macOS, and Linux — including how to get past the security warnings that appear because the app is not commercially code-signed.
 
 If something isn't working, check [[Troubleshooting]]. For habits that make the app more useful, see [[Tips and Best Practices]].
 
 ## Good to know up front
 
 - **It is offline and private.** Your data is a local SQLite file. Nothing is uploaded anywhere.
-- **It must run as a desktop app.** Opening the web frontend alone in a browser will not work — the data layer only exists inside the desktop runtime. See [[Getting Started]] for the correct command.
+- **No account needed.** Just download, install, and open it.
 - **Balances are driven by transactions.** You set an opening balance when you create an account; after that, the balance changes only when you add, edit, or delete transactions.
