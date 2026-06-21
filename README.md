@@ -45,4 +45,4 @@ The wiki source is also versioned in the [`wiki/`](./wiki) folder.
 
 ## License
 
-MIT.
+[PolyForm Noncommercial License 1.0.0](./LICENSE). You're free to use, modify, build on, and redistribute ManMoney for any non-commercial purpose. Commercial use is not permitted.
