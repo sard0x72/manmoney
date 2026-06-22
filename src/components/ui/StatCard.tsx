@@ -24,15 +24,18 @@ export function StatCard({ label, value, sub, icon, accent, trend, trendValue, c
         )}
       </div>
       <div>
-        <p className="text-2xl font-bold text-[hsl(var(--text))] tabular-nums">{value}</p>
+        <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{value}</p>
         {(sub || trendValue) && (
           <div className="flex items-center gap-2 mt-1">
             {trendValue && (
-              <span className={cn('text-xs font-medium', trend === 'up' ? 'text-green-500' : trend === 'down' ? 'text-red-500' : 'text-[hsl(var(--text-muted))]')}>
+              <span
+                className={cn('text-xs font-medium')}
+                style={{ color: trend === 'up' ? 'var(--positive)' : trend === 'down' ? 'var(--negative)' : 'var(--text-secondary)' }}
+              >
                 {trend === 'up' ? '↑' : trend === 'down' ? '↓' : ''} {trendValue}
               </span>
             )}
-            {sub && <span className="text-xs text-[hsl(var(--text-muted))]">{sub}</span>}
+            {sub && <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{sub}</span>}
           </div>
         )}
       </div>

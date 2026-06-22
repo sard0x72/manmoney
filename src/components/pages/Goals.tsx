@@ -5,9 +5,10 @@ import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
 import { EmptyState } from '../ui/EmptyState';
+import { PageHeader } from '../layout/PageHeader';
 import type { SavingsGoal } from '../../types';
 
-const COLORS = ['#6174f5','#22c55e','#ef4444','#f97316','#a855f7','#06b6d4','#eab308','#ec4899'];
+const COLORS = ['#BD5C42','#4E7A52','#B23E2E','#B5852A','#8A5A78','#3F7E7A','#A87E2E','#B05772'];
 
 function GoalForm({ goal, onSave, onCancel }: { goal?: SavingsGoal; onSave: () => void; onCancel: () => void }) {
   const { showToast } = useAppStore();
@@ -25,35 +26,19 @@ function GoalForm({ goal, onSave, onCancel }: { goal?: SavingsGoal; onSave: () =
     if (!tgt || tgt <= 0) return showToast('Enter a valid target amount', 'error');
     setSaving(true);
     try {
-      const data = {
-        name: name.trim(),
-        target_amount: tgt,
-        current_amount: parseFloat(current) || 0,
-        deadline: deadline || undefined,
-        color,
-        icon: 'target',
-        notes,
-      };
-      if (goal) {
-        await api.goals.update({ ...data, id: goal.id });
-        showToast('Goal updated');
-      } else {
-        await api.goals.create(data);
-        showToast('Goal created');
-      }
+      const data = { name: name.trim(), target_amount: tgt, current_amount: parseFloat(current) || 0, deadline: deadline || undefined, color, icon: 'target', notes };
+      if (goal) { await api.goals.update({ ...data, id: goal.id }); showToast('Goal updated'); }
+      else { await api.goals.create(data); showToast('Goal created'); }
       onSave();
-    } catch (e: any) {
-      showToast(e?.toString() ?? 'Error', 'error');
-    } finally {
-      setSaving(false);
-    }
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
+    finally { setSaving(false); }
   };
 
   return (
     <div className="space-y-4">
       <div>
         <label className="label mb-1.5 block">Goal Name</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="e.g. New Laptop, Emergency Fund…" autoFocus />
+        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="e.g. Emergency Fund, Japan Trip…" autoFocus />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -81,8 +66,7 @@ function GoalForm({ goal, onSave, onCancel }: { goal?: SavingsGoal; onSave: () =
           {COLORS.map(c => (
             <button key={c} onClick={() => setColor(c)}
               className={`w-7 h-7 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-[hsl(var(--text))] scale-110' : 'hover:scale-105'}`}
-              style={{ backgroundColor: c }}
-            />
+              style={{ backgroundColor: c }} />
           ))}
         </div>
       </div>
@@ -100,79 +84,15 @@ function GoalForm({ goal, onSave, onCancel }: { goal?: SavingsGoal; onSave: () =
   );
 }
 
-function GoalCard({ goal, onEdit, onDelete }: { goal: SavingsGoal; onEdit: () => void; onDelete: () => void }) {
-  const pct = goal.target_amount > 0 ? Math.min(100, (goal.current_amount / goal.target_amount) * 100) : 0;
-  const remaining = goal.target_amount - goal.current_amount;
-  const done = pct >= 100;
-
+/* Small circular progress ring — 44×44 */
+function GoalRing({ pct, color }: { pct: number; color: string }) {
+  const r = 17, c = 2 * Math.PI * r;
   return (
-    <div className="card p-5 group hover:shadow-card-hover transition-shadow">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${goal.color}20` }}>
-            <Target size={18} style={{ color: goal.color }} />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-[hsl(var(--text))]">{goal.name}</h3>
-            {goal.deadline && (
-              <p className="text-xs text-[hsl(var(--text-muted))]">Due {formatDate(goal.deadline)}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-[hsl(var(--border))] text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))] transition-colors">
-            <Pencil size={13} />
-          </button>
-          <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-[hsl(var(--text-muted))] hover:text-red-500 transition-colors">
-            <Trash2 size={13} />
-          </button>
-        </div>
-      </div>
-
-      {/* Circular progress */}
-      <div className="flex items-center gap-4 mb-4">
-        <div className="relative w-20 h-20 shrink-0">
-          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-            <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(var(--border))" strokeWidth="10" />
-            <circle
-              cx="50" cy="50" r="40" fill="none"
-              stroke={done ? '#22c55e' : goal.color}
-              strokeWidth="10"
-              strokeDasharray={`${pct * 2.51} 251`}
-              strokeLinecap="round"
-              className="transition-all duration-700"
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-sm font-bold" style={{ color: done ? '#22c55e' : goal.color }}>{Math.round(pct)}%</span>
-          </div>
-        </div>
-        <div className="flex-1">
-          <div className="flex justify-between text-sm mb-1">
-            <span className="text-[hsl(var(--text-muted))]">Saved</span>
-            <span className="font-semibold">{formatCurrency(goal.current_amount)}</span>
-          </div>
-          <div className="flex justify-between text-sm mb-1">
-            <span className="text-[hsl(var(--text-muted))]">Target</span>
-            <span className="font-semibold">{formatCurrency(goal.target_amount)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-[hsl(var(--text-muted))]">{done ? 'Achieved! 🎉' : 'Remaining'}</span>
-            {!done && <span className="font-semibold amount-negative">{formatCurrency(remaining)}</span>}
-          </div>
-        </div>
-      </div>
-
-      {/* Linear progress bar */}
-      <div className="h-2 bg-[hsl(var(--border))] rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${pct}%`, backgroundColor: done ? '#22c55e' : goal.color }}
-        />
-      </div>
-
-      {goal.notes && <p className="text-xs text-[hsl(var(--text-muted))] mt-3 truncate">{goal.notes}</p>}
-    </div>
+    <svg width="44" height="44" viewBox="0 0 44 44" style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
+      <circle cx="22" cy="22" r={r} fill="none" stroke="var(--paper-sunk)" strokeWidth="4" />
+      <circle cx="22" cy="22" r={r} fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"
+        strokeDasharray={`${(pct / 100) * c} ${c}`} />
+    </svg>
   );
 }
 
@@ -191,50 +111,119 @@ export function Goals() {
       showToast('Goal deleted');
       setDeleteId(null);
       fetchGoals();
-    } catch (e: any) {
-      showToast(e?.toString() ?? 'Error', 'error');
-    }
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
   };
 
   const totalTarget = goals.reduce((s, g) => s + g.target_amount, 0);
   const totalSaved = goals.reduce((s, g) => s + g.current_amount, 0);
 
+  const lead = goals.length > 0
+    ? `${formatCurrency(totalSaved)} set aside of ${formatCurrency(totalTarget)} across ${goals.length} goal${goals.length !== 1 ? 's' : ''}.`
+    : undefined;
+
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <div>
-          <h1 className="text-xl font-bold text-[hsl(var(--text))]">Savings Goals</h1>
-          {goals.length > 0 && (
-            <p className="text-sm text-[hsl(var(--text-muted))] mt-0.5">
-              {formatCurrency(totalSaved)} saved of {formatCurrency(totalTarget)} total
-            </p>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <PageHeader
+        eyebrow="Saving toward"
+        title="Savings Goals"
+        lead={lead}
+        actions={
+          <button onClick={() => { setEditGoal(undefined); setShowForm(true); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={15} /> New Goal
+          </button>
+        }
+      />
+
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth: 'var(--content-max)', margin: '0 auto', padding: '32px 40px 56px' }}>
+          {goals.length === 0 ? (
+            <EmptyState
+              icon={<Target size={22} />}
+              title="No savings goals"
+              description="Create a goal to track your progress toward something you're saving for."
+              action={<button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> New Goal</button>}
+            />
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
+              {goals.map(g => {
+                const pct = g.target_amount > 0 ? Math.min(100, (g.current_amount / g.target_amount) * 100) : 0;
+                const done = pct >= 100;
+                const remaining = Math.max(0, g.target_amount - g.current_amount);
+                return (
+                  <div key={g.id} className="mm-card" style={{ padding: 24, cursor: 'default' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                      <div>
+                        <h3 style={{
+                          fontFamily: 'var(--font-serif)', fontSize: 20, fontWeight: 600,
+                          color: 'var(--ink-strong)',
+                        }}>
+                          {g.name}
+                        </h3>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)', marginTop: 3 }}>
+                          {g.deadline ? `Target · ${formatDate(g.deadline)}` : 'No deadline'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {done ? (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            borderRadius: 999, padding: '3px 10px',
+                            background: 'var(--positive-tint)', color: 'var(--positive)',
+                            fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600,
+                          }}>
+                            ✓ Reached
+                          </span>
+                        ) : (
+                          <GoalRing pct={pct} color={g.color} />
+                        )}
+                        <div style={{ display: 'flex', gap: 2 }}>
+                          <button onClick={() => { setEditGoal(g); setShowForm(true); }}
+                            style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--paper-sunk)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}>
+                            <Pencil size={13} />
+                          </button>
+                          <button onClick={() => setDeleteId(g.id)}
+                            style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 22 }}>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
+                        fontSize: 22, fontWeight: 500, color: 'var(--ink-strong)',
+                      }}>
+                        {formatCurrency(g.current_amount)}
+                      </span>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-faint)' }}>
+                        of {formatCurrency(g.target_amount)}
+                      </span>
+                    </div>
+
+                    <div style={{ marginTop: 14, height: 6, background: 'var(--paper-sunk)', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', width: `${pct}%`,
+                        background: done ? 'var(--positive)' : g.color,
+                        borderRadius: 999, transition: 'width 700ms',
+                      }} />
+                    </div>
+
+                    <div style={{ marginTop: 12, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-muted)' }}>
+                      {done
+                        ? 'Fully funded — nice work.'
+                        : <>{formatCurrency(remaining)} to go · <span style={{ color: 'var(--ink-faint)' }}>{Math.round(pct)}%</span></>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
-        <button onClick={() => { setEditGoal(undefined); setShowForm(true); }} className="btn-primary">
-          <Plus size={15} /> New Goal
-        </button>
-      </div>
-
-      <div className="page-content">
-        {goals.length === 0 ? (
-          <EmptyState
-            icon={<Target size={22} />}
-            title="No savings goals"
-            description="Create a goal to track your progress toward something you're saving for."
-            action={<button onClick={() => setShowForm(true)} className="btn-primary"><Plus size={14} /> New Goal</button>}
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {goals.map(g => (
-              <GoalCard
-                key={g.id}
-                goal={g}
-                onEdit={() => { setEditGoal(g); setShowForm(true); }}
-                onDelete={() => setDeleteId(g.id)}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
       <Modal open={showForm} onClose={() => { setShowForm(false); setEditGoal(undefined); }} title={editGoal ? 'Edit Goal' : 'New Savings Goal'} size="sm">

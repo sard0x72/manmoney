@@ -5,9 +5,10 @@ import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
 import { EmptyState } from '../ui/EmptyState';
+import { PageHeader } from '../layout/PageHeader';
 import type { Account } from '../../types';
 
-const COLORS = ['#6174f5','#22c55e','#ef4444','#f97316','#a855f7','#06b6d4','#eab308','#ec4899','#14b8a6','#3b82f6'];
+const COLORS = ['#BD5C42','#4E7A52','#B23E2E','#B5852A','#8A5A78','#3F7E7A','#A87E2E','#B05772','#6E7A3F','#5B6675'];
 const CURRENCIES = ['USD','EUR','GBP','JPY','CAD','AUD','CHF','INR','BRL','MXN','UZS'];
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
@@ -38,11 +39,8 @@ function AccountForm({ acct, onSave, onCancel }: { acct?: Account; onSave: () =>
         showToast('Account created');
       }
       onSave();
-    } catch (e: any) {
-      showToast(e?.toString() ?? 'Error', 'error');
-    } finally {
-      setSaving(false);
-    }
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -58,9 +56,11 @@ function AccountForm({ acct, onSave, onCancel }: { acct?: Account; onSave: () =>
             const Icon = TYPE_ICONS[t] ?? Wallet;
             return (
               <button key={t} onClick={() => setType(t)}
-                className={`flex items-center gap-2 p-3 rounded-xl border-2 text-sm font-medium capitalize transition-all ${type === t ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 text-brand-600' : 'border-[hsl(var(--border))] text-[hsl(var(--text-muted))] hover:border-[hsl(var(--text-muted))]'}`}>
-                <Icon size={16} />
-                {t}
+                className="flex items-center gap-2 p-3 rounded-xl border-2 text-sm font-medium capitalize transition-all"
+                style={type === t
+                  ? { borderColor: 'var(--clay)', background: 'var(--clay-tint)', color: 'var(--clay-ink)' }
+                  : { borderColor: 'var(--line)', color: 'var(--text-secondary)' }}>
+                <Icon size={16} /> {t}
               </button>
             );
           })}
@@ -117,82 +117,128 @@ export function Accounts() {
       showToast('Account deleted');
       setDeleteId(null);
       fetchAccounts();
-    } catch (e: any) {
-      showToast(e?.toString() ?? 'Error', 'error');
-    }
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
   };
 
-  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
-  const byType = accounts.reduce<Record<string, Account[]>>((acc, a) => {
-    (acc[a.account_type] = acc[a.account_type] ?? []).push(a);
-    return acc;
-  }, {});
+  const net = accounts.reduce((s, a) => s + a.balance, 0);
+  const assets = accounts.filter(a => a.balance >= 0).reduce((s, a) => s + a.balance, 0);
+  const debts = accounts.filter(a => a.balance < 0).reduce((s, a) => s + a.balance, 0);
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <div>
-          <h1 className="text-xl font-bold text-[hsl(var(--text))]">Accounts</h1>
-          <p className="text-sm text-[hsl(var(--text-muted))] mt-0.5">Net worth: <span className="font-semibold text-[hsl(var(--text))]">{formatCurrency(totalBalance)}</span></p>
-        </div>
-        <button onClick={() => { setEditAcct(undefined); setShowForm(true); }} className="btn-primary">
-          <Plus size={15} /> Add Account
-        </button>
-      </div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <PageHeader
+        eyebrow="Where it lives"
+        title="Accounts"
+        actions={
+          <button onClick={() => { setEditAcct(undefined); setShowForm(true); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={15} /> Add Account
+          </button>
+        }
+      />
 
-      <div className="page-content space-y-5">
-        {accounts.length === 0 ? (
-          <EmptyState
-            icon={<Wallet size={22} />}
-            title="No accounts"
-            description="Create accounts to track your cash, bank, credit, and investment balances."
-            action={<button onClick={() => setShowForm(true)} className="btn-primary"><Plus size={14} /> Add Account</button>}
-          />
-        ) : (
-          Object.entries(byType).map(([type, accts]) => {
-            const Icon = TYPE_ICONS[type] ?? Wallet;
-            const subtotal = accts.reduce((s, a) => s + a.balance, 0);
-            return (
-              <div key={type}>
-                <div className="flex items-center gap-2 mb-3">
-                  <p className="section-title capitalize">{type} Accounts</p>
-                  <div className="h-px flex-1 bg-[hsl(var(--border))]" />
-                  <span className="text-sm font-semibold text-[hsl(var(--text))]">{formatCurrency(subtotal)}</span>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth: 820, padding: '32px 44px 56px' }}>
+          {accounts.length === 0 ? (
+            <EmptyState
+              icon={<Wallet size={22} />}
+              title="No accounts"
+              description="Create accounts to track your cash, bank, credit, and investment balances."
+              action={<button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add Account</button>}
+            />
+          ) : (
+            <>
+              {/* Net worth header */}
+              <div style={{ display: 'flex', gap: 48, paddingBottom: 28, borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+                <div>
+                  <div className="mm-eyebrow" style={{ marginBottom: 10 }}>Net worth</div>
+                  <div style={{
+                    fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
+                    fontSize: 32, fontWeight: 500, color: 'var(--ink-strong)',
+                  }}>
+                    {formatCurrency(net)}
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {accts.map(a => (
-                    <div key={a.id} className="card p-5 group hover:shadow-card-hover transition-shadow">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${a.color}20`, color: a.color }}>
-                            <Icon size={20} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-[hsl(var(--text))]">{a.name}</p>
-                            <p className="text-xs text-[hsl(var(--text-muted))] capitalize">{a.account_type} · {a.currency}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => { setEditAcct(a); setShowForm(true); }}
-                            className="p-1.5 rounded-lg hover:bg-[hsl(var(--border))] text-[hsl(var(--text-muted))] hover:text-[hsl(var(--text))] transition-colors">
-                            <Pencil size={13} />
-                          </button>
-                          <button onClick={() => setDeleteId(a.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-[hsl(var(--text-muted))] hover:text-red-500 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-                      <p className={`text-2xl font-bold tabular-nums ${a.balance >= 0 ? 'text-[hsl(var(--text))]' : 'text-red-500'}`}>
-                        {formatCurrency(a.balance, a.currency)}
-                      </p>
+                <div style={{ display: 'flex', gap: 36, alignItems: 'flex-end', paddingBottom: 4 }}>
+                  <div>
+                    <div className="mm-eyebrow" style={{ marginBottom: 8 }}>Assets</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 19, fontWeight: 500, color: 'var(--positive)' }}>
+                      {formatCurrency(assets)}
                     </div>
-                  ))}
+                  </div>
+                  <div>
+                    <div className="mm-eyebrow" style={{ marginBottom: 8 }}>Debts</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 19, fontWeight: 500, color: 'var(--ink)' }}>
+                      {formatCurrency(Math.abs(debts))}
+                    </div>
+                  </div>
                 </div>
               </div>
-            );
-          })
-        )}
+
+              {/* Account rows */}
+              <div style={{ marginTop: 12 }}>
+                {accounts.map(a => {
+                  const Icon = TYPE_ICONS[a.account_type] ?? Wallet;
+                  const neg = a.balance < 0;
+                  return (
+                    <div key={a.id} className="mm-acctrow" style={{
+                      display: 'flex', alignItems: 'center', gap: 16,
+                      padding: '18px 8px', borderBottom: '1px solid var(--line)',
+                    }}>
+                      <div style={{
+                        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                        background: `${a.color}20`, color: a.color,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icon size={18} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink-strong)' }}>
+                          {a.name}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center',
+                            borderRadius: 999, padding: '2px 8px',
+                            background: 'var(--paper-sunk)',
+                            fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 500,
+                            color: 'var(--ink-muted)', textTransform: 'capitalize',
+                          }}>
+                            {a.account_type}
+                          </span>
+                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>{a.currency}</span>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{
+                          fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
+                          fontSize: 18, fontWeight: 500,
+                          color: neg ? 'var(--negative)' : 'var(--ink-strong)',
+                        }}>
+                          {formatCurrency(Math.abs(a.balance), a.currency)}
+                        </div>
+                        {neg && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--negative)', marginTop: 2 }}>owed</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, marginLeft: 4 }}>
+                        <button onClick={() => { setEditAcct(a); setShowForm(true); }}
+                          style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 6, display: 'flex' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--paper-sunk)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}>
+                          <Pencil size={13} />
+                        </button>
+                        <button onClick={() => setDeleteId(a.id)}
+                          style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 6, display: 'flex' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <Modal open={showForm} onClose={() => { setShowForm(false); setEditAcct(undefined); }} title={editAcct ? 'Edit Account' : 'Add Account'} size="sm">

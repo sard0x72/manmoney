@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
 import { EmptyState } from '../ui/EmptyState';
+import { PageHeader } from '../layout/PageHeader';
 
 const PAYMENT_METHODS = ['cash', 'bank transfer', 'credit card', 'debit card', 'mobile payment', 'check', 'other'];
 
@@ -38,11 +39,8 @@ function RecurringForm({ onSave, onCancel }: { onSave: () => void; onCancel: () 
       });
       showToast('Recurring transaction created');
       onSave();
-    } catch (e: any) {
-      showToast(e?.toString() ?? 'Error', 'error');
-    } finally {
-      setSaving(false);
-    }
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -52,7 +50,7 @@ function RecurringForm({ onSave, onCancel }: { onSave: () => void; onCancel: () 
         <div className="flex gap-1 p-1 bg-[hsl(var(--bg))] rounded-xl">
           {(['expense', 'income'] as const).map(t => (
             <button key={t} onClick={() => setType(t)}
-              className={`flex-1 py-1.5 rounded-lg text-sm font-medium capitalize transition-all ${type === t ? 'bg-[hsl(var(--surface))] shadow-card text-[hsl(var(--text))]' : 'text-[hsl(var(--text-muted))]'}`}>
+              className={`flex-1 py-1.5 rounded-lg text-sm font-medium capitalize transition-all ${type === t ? 'bg-[var(--surface)] shadow-card text-[hsl(var(--text))]' : 'text-[hsl(var(--text-muted))]'}`}>
               {t}
             </button>
           ))}
@@ -127,10 +125,6 @@ function RecurringForm({ onSave, onCancel }: { onSave: () => void; onCancel: () 
   );
 }
 
-const FREQ_COLORS: Record<string, string> = {
-  daily: '#ef4444', weekly: '#f97316', monthly: '#6174f5', yearly: '#22c55e'
-};
-
 export function Recurring() {
   const { recurring, fetchRecurring, showToast } = useAppStore();
   const [showForm, setShowForm] = useState(false);
@@ -145,81 +139,111 @@ export function Recurring() {
       showToast('Recurring transaction removed');
       setDeleteId(null);
       fetchRecurring();
-    } catch (e: any) {
-      showToast(e?.toString() ?? 'Error', 'error');
-    }
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
   };
 
-  const totalMonthly = recurring
-    .filter(r => r.is_active)
-    .reduce((s, r) => {
-      const m = { daily: 30, weekly: 4.3, monthly: 1, yearly: 1 / 12 }[r.frequency] ?? 1;
-      return r.transaction_type === 'expense' ? s + r.amount * m : s - r.amount * m;
-    }, 0);
+  const monthlyOut = recurring.filter(r => r.is_active && r.transaction_type === 'expense')
+    .reduce((s, r) => s + r.amount * ({ daily: 30, weekly: 4.3, monthly: 1, yearly: 1/12 }[r.frequency] ?? 1), 0);
+  const monthlyIn = recurring.filter(r => r.is_active && r.transaction_type === 'income')
+    .reduce((s, r) => s + r.amount * ({ daily: 30, weekly: 4.3, monthly: 1, yearly: 1/12 }[r.frequency] ?? 1), 0);
+
+  const lead = recurring.length > 0
+    ? `${formatCurrency(monthlyIn)} in and ${formatCurrency(monthlyOut)} out each month, on autopilot.`
+    : undefined;
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <div>
-          <h1 className="text-xl font-bold text-[hsl(var(--text))]">Recurring Transactions</h1>
-          {recurring.length > 0 && (
-            <p className="text-sm text-[hsl(var(--text-muted))] mt-0.5">
-              Monthly net impact: <span className={totalMonthly >= 0 ? 'amount-negative' : 'amount-positive'}>{formatCurrency(Math.abs(totalMonthly))}</span>
-            </p>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <PageHeader
+        eyebrow="Scheduled"
+        title="Recurring"
+        lead={lead}
+        actions={
+          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={15} /> New Schedule
+          </button>
+        }
+      />
+
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth: 820, padding: '32px 44px 56px' }}>
+          {recurring.length === 0 ? (
+            <EmptyState
+              icon={<Repeat size={22} />}
+              title="No recurring transactions"
+              description="Set up recurring transactions for bills, subscriptions, and regular income."
+              action={<button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add Recurring</button>}
+            />
+          ) : (
+            <>
+              {recurring.map(r => (
+                <div key={r.id} className="mm-acctrow" style={{
+                  display: 'flex', alignItems: 'center', gap: 16,
+                  padding: '16px 8px', borderBottom: '1px solid var(--line)',
+                }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                    background: r.transaction_type === 'income' ? 'var(--positive-tint)' : 'var(--clay-tint)',
+                    color: r.transaction_type === 'income' ? 'var(--positive)' : 'var(--clay)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Repeat size={17} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>
+                      {r.payee || r.category_name}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        borderRadius: 999, padding: '2px 8px',
+                        background: 'var(--paper-sunk)',
+                        fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 500,
+                        color: 'var(--ink-muted)', textTransform: 'capitalize',
+                      }}>
+                        {r.frequency}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
+                        <Calendar size={12} /> Next {formatDate(r.next_date)}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{
+                      fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
+                      fontSize: 16, fontWeight: 500,
+                      color: r.transaction_type === 'income' ? 'var(--positive)' : 'var(--negative)',
+                    }}>
+                      {r.transaction_type === 'income' ? '+' : '−'}{formatCurrency(r.amount)}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-faint)' }}>
+                      {r.account_name}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setDeleteId(r.id)}
+                    style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 6, display: 'flex', marginLeft: 4 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+
+              {/* Net monthly footer */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, padding: '0 8px' }}>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--ink-muted)' }}>Net monthly</span>
+                <span style={{
+                  fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
+                  fontSize: 16, fontWeight: 500,
+                  color: monthlyIn - monthlyOut >= 0 ? 'var(--positive)' : 'var(--negative)',
+                }}>
+                  {monthlyIn - monthlyOut >= 0 ? '+' : '−'}{formatCurrency(Math.abs(monthlyIn - monthlyOut))}
+                </span>
+              </div>
+            </>
           )}
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary">
-          <Plus size={15} /> Add Recurring
-        </button>
-      </div>
-
-      <div className="page-content">
-        {recurring.length === 0 ? (
-          <EmptyState
-            icon={<Repeat size={22} />}
-            title="No recurring transactions"
-            description="Set up recurring transactions for bills, subscriptions, and regular income."
-            action={<button onClick={() => setShowForm(true)} className="btn-primary"><Plus size={14} /> Add Recurring</button>}
-          />
-        ) : (
-          <div className="space-y-3">
-            {recurring.map(r => (
-              <div key={r.id} className="card p-4 flex items-center gap-4 group hover:shadow-card-hover transition-shadow">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${FREQ_COLORS[r.frequency]}15` }}>
-                  <Repeat size={18} style={{ color: FREQ_COLORS[r.frequency] }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-sm font-semibold text-[hsl(var(--text))]">{r.payee || r.category_name}</p>
-                    <span className="badge capitalize" style={{ backgroundColor: `${FREQ_COLORS[r.frequency]}15`, color: FREQ_COLORS[r.frequency] }}>
-                      {r.frequency}
-                    </span>
-                    <span className={`badge ${r.transaction_type === 'income' ? 'bg-green-100 dark:bg-green-900/20 text-green-600' : 'bg-red-100 dark:bg-red-900/20 text-red-500'}`}>
-                      {r.transaction_type}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-muted))]">
-                    <span>{r.account_name}</span>
-                    <span className="flex items-center gap-1"><Calendar size={11} /> Next: {formatDate(r.next_date)}</span>
-                    {r.end_date && <span>Ends: {formatDate(r.end_date)}</span>}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`text-base font-bold tabular-nums ${r.transaction_type === 'income' ? 'amount-positive' : 'amount-negative'}`}>
-                    {r.transaction_type === 'income' ? '+' : '-'}{formatCurrency(r.amount)}
-                  </p>
-                  <p className="text-xs text-[hsl(var(--text-muted))]">{r.payment_method}</p>
-                </div>
-                <button
-                  onClick={() => setDeleteId(r.id)}
-                  className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-[hsl(var(--text-muted))] hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <Modal open={showForm} onClose={() => setShowForm(false)} title="Add Recurring Transaction" size="md">

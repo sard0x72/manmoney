@@ -27,14 +27,14 @@ const PAGE_MAP = {
 
 function NotTauriScreen() {
   return (
-    <div className="flex h-screen items-center justify-center bg-[hsl(var(--bg))]">
+    <div className="flex h-screen items-center justify-center" style={{ background: 'var(--paper)' }}>
       <div className="text-center max-w-sm px-6">
         <div className="text-5xl mb-4">🖥️</div>
-        <h1 className="text-xl font-bold text-[hsl(var(--text))] mb-2">Desktop App Required</h1>
-        <p className="text-sm text-[hsl(var(--text-muted))] mb-6">
+        <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Desktop App Required</h1>
+        <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
           ManMoney must run as a desktop application. Open a terminal in the project folder and run:
         </p>
-        <code className="block bg-[hsl(var(--surface))] border border-[hsl(var(--border))] rounded-xl px-4 py-3 text-sm font-mono text-[hsl(var(--text))]">
+        <code className="block rounded-xl px-4 py-3 text-sm font-mono" style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--text-primary)' }}>
           npm run tauri dev
         </code>
       </div>
@@ -59,13 +59,13 @@ export default function App() {
   const PageComponent = PAGE_MAP[currentPage] ?? Dashboard;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[hsl(var(--bg))]">
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--paper)' }}>
       <Sidebar />
       <main className="flex-1 min-w-0 h-full overflow-hidden animate-fade-in">
         {loading && currentPage === 'dashboard' ? (
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--clay)', borderTopColor: 'transparent' }} />
               <p className="text-sm text-[hsl(var(--text-muted))]">Loading your finances…</p>
             </div>
           </div>

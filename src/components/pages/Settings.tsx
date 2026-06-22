@@ -1,27 +1,31 @@
 import { useState } from 'react';
-import { Download, Database, Info, Sun, Moon, FileText, FileSpreadsheet, Shield } from 'lucide-react';
+import { Download, Database, Sun, Moon, FileText, FileSpreadsheet, ShieldCheck, ArrowLeftRight, Tag, Wallet } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { downloadBlob } from '../../lib/utils';
+import { PageHeader } from '../layout/PageHeader';
 import * as XLSX from 'xlsx';
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="card p-5">
-      <h2 className="text-sm font-semibold text-[hsl(var(--text))] mb-4 pb-3 border-b border-[hsl(var(--border))]">{title}</h2>
-      <div className="space-y-3">{children}</div>
-    </div>
+    <section style={{ marginBottom: 36 }}>
+      <h2 className="mm-eyebrow" style={{ marginBottom: 4 }}>{title}</h2>
+      <div>{children}</div>
+    </section>
   );
 }
 
-function SettingRow({ label, desc, action }: { label: string; desc?: string; action: React.ReactNode }) {
+function Row({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-1">
-      <div>
-        <p className="text-sm font-medium text-[hsl(var(--text))]">{label}</p>
-        {desc && <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">{desc}</p>}
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: 24, padding: '16px 0', borderBottom: '1px solid var(--line)',
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14.5, fontWeight: 500, color: 'var(--ink)' }}>{label}</div>
+        {desc && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)', marginTop: 2 }}>{desc}</div>}
       </div>
-      {action}
+      <div style={{ flexShrink: 0 }}>{children}</div>
     </div>
   );
 }
@@ -35,32 +39,21 @@ export function Settings() {
       const csv = await api.export.csv();
       downloadBlob(csv, `manmoney-export-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
       showToast('CSV exported');
-    } catch (e: any) {
-      showToast(e?.toString() ?? 'Export failed', 'error');
-    }
+    } catch (e: any) { showToast(e?.toString() ?? 'Export failed', 'error'); }
   };
 
   const exportExcel = async () => {
     try {
       const rows = transactions.map(t => ({
-        Date: t.date,
-        Type: t.transaction_type,
-        Amount: t.amount,
-        Category: t.category_name ?? '',
-        Payee: t.payee,
-        Notes: t.notes,
-        Account: t.account_name ?? '',
-        'Payment Method': t.payment_method,
-        Tags: t.tags,
+        Date: t.date, Type: t.transaction_type, Amount: t.amount,
+        Category: t.category_name ?? '', Payee: t.payee, Notes: t.notes,
+        Account: t.account_name ?? '', 'Payment Method': t.payment_method, Tags: t.tags,
       }));
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Transactions');
       XLSX.writeFile(wb, `manmoney-export-${new Date().toISOString().slice(0, 10)}.xlsx`);
       showToast('Excel file exported');
-    } catch (e: any) {
-      showToast('Export failed', 'error');
-    }
+    } catch { showToast('Export failed', 'error'); }
   };
 
   const exportJSON = () => {
@@ -70,120 +63,115 @@ export function Settings() {
   };
 
   const showDbPath = async () => {
-    try {
-      const path = await api.export.dbPath();
-      setDbPath(path);
-    } catch (e) {
-      showToast('Failed to get DB path', 'error');
-    }
+    try { setDbPath(await api.export.dbPath()); }
+    catch { showToast('Failed to get DB path', 'error'); }
   };
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h1 className="text-xl font-bold text-[hsl(var(--text))]">Settings</h1>
-      </div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <PageHeader eyebrow="Preferences" title="Settings" />
 
-      <div className="page-content space-y-4">
-        {/* Appearance */}
-        <Section title="Appearance">
-          <SettingRow
-            label="Theme"
-            desc="Switch between light and dark mode"
-            action={
-              <button onClick={toggleTheme} className="btn-secondary gap-2">
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth: 'var(--prose-max)', padding: '36px 44px 56px' }}>
+
+          <Group title="Appearance">
+            <Row label="Theme" desc="Switch between light and dark mode.">
+              <button onClick={toggleTheme} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 {isDark ? <Sun size={15} /> : <Moon size={15} />}
                 {isDark ? 'Light Mode' : 'Dark Mode'}
               </button>
-            }
-          />
-        </Section>
+            </Row>
+          </Group>
 
-        {/* Export */}
-        <Section title="Export Data">
-          <SettingRow
-            label="Export as CSV"
-            desc="Download all transactions as a spreadsheet-compatible CSV file"
-            action={
-              <button onClick={exportCSV} className="btn-secondary gap-2">
-                <FileText size={14} />
-                Export CSV
+          <Group title="Export data">
+            <Row label="Export as CSV" desc="Download all transactions as a spreadsheet-compatible file.">
+              <button onClick={exportCSV} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <FileText size={14} /> CSV
               </button>
-            }
-          />
-          <SettingRow
-            label="Export as Excel"
-            desc="Download all transactions as an Excel (.xlsx) workbook"
-            action={
-              <button onClick={exportExcel} className="btn-secondary gap-2">
-                <FileSpreadsheet size={14} />
-                Export Excel
+            </Row>
+            <Row label="Export as Excel" desc="Download all transactions as an Excel (.xlsx) workbook.">
+              <button onClick={exportExcel} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <FileSpreadsheet size={14} /> Excel
               </button>
-            }
-          />
-          <SettingRow
-            label="Backup as JSON"
-            desc="Export all data (transactions, categories, accounts) as JSON"
-            action={
-              <button onClick={exportJSON} className="btn-secondary gap-2">
-                <Download size={14} />
-                Backup JSON
+            </Row>
+            <Row label="Backup as JSON" desc="Export all data (transactions, categories, accounts) as JSON.">
+              <button onClick={exportJSON} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Download size={14} /> JSON
               </button>
-            }
-          />
-        </Section>
+            </Row>
+          </Group>
 
-        {/* Database */}
-        <Section title="Database">
-          <SettingRow
-            label="Database Location"
-            desc="SQLite file stored locally on your device"
-            action={
-              <button onClick={showDbPath} className="btn-secondary gap-2">
-                <Database size={14} />
-                Show Path
+          <Group title="Your data">
+            <Row label="Database location" desc="SQLite file stored locally on your device.">
+              <button onClick={showDbPath} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Database size={14} /> Show path
               </button>
-            }
-          />
-          {dbPath && (
-            <div className="mt-2 p-3 rounded-xl bg-[hsl(var(--bg))] border border-[hsl(var(--border))]">
-              <p className="text-xs font-mono text-[hsl(var(--text-muted))] break-all">{dbPath}</p>
-            </div>
-          )}
-        </Section>
-
-        {/* Privacy */}
-        <Section title="Privacy & Security">
-          <SettingRow
-            label="Local Storage Only"
-            desc="All your financial data is stored locally on your device. No data is ever sent to any server."
-            action={
-              <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
-                <Shield size={15} />
-                <span className="text-sm font-medium">100% Local</span>
+            </Row>
+            {dbPath && (
+              <div style={{
+                marginTop: 8, padding: '10px 14px', borderRadius: 'var(--radius)',
+                background: 'var(--paper-sunk)', border: '1px solid var(--line)',
+              }}>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-muted)', wordBreak: 'break-all' }}>{dbPath}</p>
               </div>
-            }
-          />
-        </Section>
+            )}
+          </Group>
 
-        {/* About */}
-        <Section title="About">
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-[hsl(var(--bg))] border border-[hsl(var(--border))]">
-            <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shrink-0">
-              <Info size={18} className="text-white" />
+          {/* Privacy promise */}
+          <div style={{
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--line)',
+            overflow: 'hidden',
+            marginTop: 8,
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '16px 20px',
+              background: 'var(--surface)',
+              borderBottom: '1px solid var(--line)',
+            }}>
+              <span style={{
+                width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                background: 'color-mix(in srgb, var(--positive) 12%, transparent)',
+                color: 'var(--positive)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <ShieldCheck size={17} />
+              </span>
+              <div>
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
+                  About
+                </div>
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-muted)', marginTop: 1 }}>
+                  Everything stays on your device. No account, no sync, no telemetry.
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-[hsl(var(--text))]">ManMoney v1.0.0</p>
-              <p className="text-xs text-[hsl(var(--text-muted))] mt-0.5">
-                A private, offline-first personal finance manager built with Tauri + React.
-                Your data never leaves your device.
-              </p>
-              <p className="text-xs text-[hsl(var(--text-muted))] mt-2">
-                {transactions.length} transactions · {accounts.length} accounts · {categories.length} categories
-              </p>
+            {/* Stats row */}
+            <div style={{
+              display: 'flex',
+              background: 'var(--paper-sunk)',
+            }}>
+              {[
+                { icon: <ArrowLeftRight size={13} />, value: transactions.length, label: 'transactions' },
+                { icon: <Wallet size={13} />, value: accounts.length, label: 'accounts' },
+                { icon: <Tag size={13} />, value: categories.length, label: 'categories' },
+              ].map((stat, i) => (
+                <div key={i} style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  padding: '12px 8px',
+                  borderRight: i < 2 ? '1px solid var(--line)' : 'none',
+                }}>
+                  <span style={{ color: 'var(--ink-faint)', display: 'flex' }}>{stat.icon}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>{stat.value}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-faint)' }}>{stat.label}</span>
+                </div>
+              ))}
             </div>
           </div>
-        </Section>
+
+        </div>
       </div>
     </div>
   );

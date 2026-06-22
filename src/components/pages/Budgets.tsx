@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Plus, ChevronLeft, ChevronRight, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Trash2, Wallet } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, monthName } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { PageHeader } from '../layout/PageHeader';
 
 function BudgetForm({ onSave, onCancel, year, month }: { onSave: () => void; onCancel: () => void; year: number; month: number }) {
   const { categories, showToast } = useAppStore();
@@ -46,8 +46,8 @@ function BudgetForm({ onSave, onCancel, year, month }: { onSave: () => void; onC
           <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="input pl-7" placeholder="0.00" autoFocus />
         </div>
       </div>
-      <p className="text-xs text-[hsl(var(--text-muted))]">
-        Setting a budget for {monthName(month)} {year}. If a budget exists for this category and period, it will be updated.
+      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
+        Setting a budget for {monthName(month)} {year}. Existing budgets for this category will be updated.
       </p>
       <div className="flex justify-end gap-2 pt-2">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
@@ -87,151 +87,108 @@ export function Budgets() {
     }
   };
 
-  const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
+  const totalLimit = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent = budgets.reduce((s, b) => s + (b.spent ?? 0), 0);
-  const overBudget = budgets.filter(b => (b.spent ?? 0) > b.amount);
+  const left = totalLimit - totalSpent;
 
-  const pieData = budgets.map(b => ({ name: b.category_name, value: b.amount, color: b.category_color }));
+  const monthActions = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button onClick={prevMonth} className="btn-ghost" style={{ padding: '6px 8px' }}><ChevronLeft size={16} /></button>
+        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--ink)', minWidth: 100, textAlign: 'center' }}>
+          {monthName(budgetMonth)} {budgetYear}
+        </span>
+        <button onClick={nextMonth} className="btn-ghost" style={{ padding: '6px 8px' }}><ChevronRight size={16} /></button>
+      </div>
+      <button onClick={() => setShowForm(true)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Plus size={15} /> New Budget
+      </button>
+    </div>
+  );
+
+  const lead = budgets.length > 0
+    ? `${formatCurrency(totalSpent)} spent of ${formatCurrency(totalLimit)}. ${formatCurrency(Math.abs(left))} ${left >= 0 ? 'still to spend' : 'over plan'}.`
+    : undefined;
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold text-[hsl(var(--text))]">Budgets</h1>
-          <div className="flex items-center gap-1">
-            <button onClick={prevMonth} className="btn-ghost p-1.5"><ChevronLeft size={16} /></button>
-            <span className="text-sm font-medium text-[hsl(var(--text))] min-w-[130px] text-center">
-              {monthName(budgetMonth)} {budgetYear}
-            </span>
-            <button onClick={nextMonth} className="btn-ghost p-1.5"><ChevronRight size={16} /></button>
-          </div>
-        </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary">
-          <Plus size={15} /> Add Budget
-        </button>
-      </div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <PageHeader
+        eyebrow={`${monthName(budgetMonth)} envelopes`}
+        title="Budgets"
+        lead={lead}
+        actions={monthActions}
+      />
 
-      <div className="page-content space-y-4">
-        {/* Summary */}
-        {budgets.length > 0 && (
-          <div className="grid grid-cols-3 gap-4">
-            <div className="card p-4">
-              <p className="label mb-1">Total Budgeted</p>
-              <p className="text-xl font-bold text-[hsl(var(--text))]">{formatCurrency(totalBudget)}</p>
-            </div>
-            <div className="card p-4">
-              <p className="label mb-1">Total Spent</p>
-              <p className={`text-xl font-bold ${totalSpent > totalBudget ? 'text-red-500' : 'text-[hsl(var(--text))]'}`}>{formatCurrency(totalSpent)}</p>
-            </div>
-            <div className="card p-4">
-              <p className="label mb-1">Remaining</p>
-              <p className={`text-xl font-bold ${totalBudget - totalSpent < 0 ? 'text-red-500' : 'amount-positive'}`}>
-                {formatCurrency(Math.abs(totalBudget - totalSpent))}
-                {totalBudget - totalSpent < 0 && <span className="text-sm font-normal ml-1 text-red-400">over</span>}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {overBudget.length > 0 && (
-          <div className="flex items-start gap-2 p-4 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
-            <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-red-700 dark:text-red-400">Over budget in {overBudget.length} {overBudget.length === 1 ? 'category' : 'categories'}</p>
-              <p className="text-xs text-red-500 dark:text-red-500 mt-0.5">
-                {overBudget.map(b => b.category_name).join(', ')}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {budgets.length === 0 ? (
-          <EmptyState
-            icon={<span className="text-2xl">💰</span>}
-            title="No budgets set"
-            description="Set monthly budgets to track your spending limits."
-            action={<button onClick={() => setShowForm(true)} className="btn-primary"><Plus size={14} /> Add Budget</button>}
-          />
-        ) : (
-          <div className="grid grid-cols-3 gap-4">
-            {/* Budget list */}
-            <div className="col-span-2 space-y-3">
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto', padding: '36px 40px 56px' }}>
+          {budgets.length === 0 ? (
+            <EmptyState
+              icon={<Wallet size={22} />}
+              title="No budgets set"
+              description="Set monthly budgets to track your spending limits."
+              action={<button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add Budget</button>}
+            />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
               {budgets.map(b => {
                 const pct = b.amount > 0 ? Math.min(100, ((b.spent ?? 0) / b.amount) * 100) : 0;
                 const over = (b.spent ?? 0) > b.amount;
-                const barColor = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f97316' : b.category_color ?? '#6174f5';
+                const remaining = b.amount - (b.spent ?? 0);
+                const barColor = over ? 'var(--negative)' : (b.category_color ?? 'var(--clay)');
                 return (
-                  <div key={b.id} className="card p-4 group">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                          style={{ backgroundColor: `${b.category_color}20`, color: b.category_color }}
-                        >
-                          <CategoryIcon icon={b.category_icon ?? 'tag'} size={16} />
+                  <div key={b.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                        background: `${over ? 'var(--negative)' : (b.category_color ?? 'var(--clay)')}20`,
+                        color: over ? 'var(--negative)' : (b.category_color ?? 'var(--clay)'),
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <CategoryIcon icon={b.category_icon ?? 'tag'} size={16} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>
+                          {b.category_name}
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-[hsl(var(--text))]">{b.category_name}</p>
-                          <p className="text-xs text-[hsl(var(--text-muted))]">
-                            {formatCurrency(b.spent ?? 0)} <span className="opacity-60">of</span> {formatCurrency(b.amount)}
-                          </p>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: over ? 'var(--negative)' : 'var(--ink-faint)' }}>
+                          {over
+                            ? `${formatCurrency(-remaining)} over budget`
+                            : `${formatCurrency(remaining)} left`}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {over && (
-                          <span className="badge bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400">
-                            +{formatCurrency((b.spent ?? 0) - b.amount)} over
+                      <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
+                            {formatCurrency(b.spent ?? 0)}
                           </span>
-                        )}
-                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                          <button onClick={() => setDeleteId(b.id)} className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-[hsl(var(--text-muted))] hover:text-red-500 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-faint)' }}>
+                            {' '}/ {formatCurrency(b.amount)}
+                          </span>
                         </div>
+                        <button
+                          onClick={() => setDeleteId(b.id)}
+                          style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <div className="h-2.5 bg-[hsl(var(--bg))] rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%`, backgroundColor: barColor }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-[hsl(var(--text-muted))]">
-                        <span>{Math.round(pct)}% used</span>
-                        <span>{over ? '0' : formatCurrency(b.amount - (b.spent ?? 0))} remaining</span>
-                      </div>
+                    <div style={{ height: 8, background: 'var(--paper-sunk)', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', width: `${pct}%`,
+                        background: barColor,
+                        borderRadius: 999,
+                        transition: 'width 500ms',
+                      }} />
                     </div>
                   </div>
                 );
               })}
             </div>
-
-            {/* Pie chart */}
-            <div className="card p-4">
-              <p className="text-sm font-semibold text-[hsl(var(--text))] mb-3">Budget Allocation</p>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={2}>
-                    {pieData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color ?? '#6174f5'} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => formatCurrency(Number(v))} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-1 mt-2">
-                {budgets.slice(0, 6).map(b => (
-                  <div key={b.id} className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: b.category_color }} />
-                    <span className="text-xs text-[hsl(var(--text-muted))] truncate">{b.category_name}</span>
-                    <span className="text-xs font-medium text-[hsl(var(--text))] ml-auto">{formatCurrency(b.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <Modal open={showForm} onClose={() => setShowForm(false)} title="Set Budget" size="sm">
