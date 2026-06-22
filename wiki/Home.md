@@ -32,7 +32,7 @@ The sidebar on the left is how you move around. Each item there has its own page
 
 ## New here?
 
-Start with [[Getting Started]]. It explains how to download and install the app on Windows, macOS, and Linux — including how to get past the security warnings that appear because the app is not commercially code-signed.
+Start with [[Getting Started]]. It explains how to download and install the app on Windows and Linux — including how to get past the security warning on Windows.
 
 If something isn't working, check [[Troubleshooting]]. For habits that make the app more useful, see [[Tips and Best Practices]].
 

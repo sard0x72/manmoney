@@ -1,6 +1,6 @@
 # Getting Started
 
-This page covers two paths: installing the app as a regular user, and running it from source as a developer.
+This page covers installing the app on Windows or Linux, and running it from source as a developer.
 
 ## Installing the app (no coding required)
 
@@ -11,12 +11,8 @@ Go to the [Releases page](https://github.com/sard0x72/manmoney/releases) and exp
 | Your computer | File to download |
 |---------------|-----------------|
 | Windows | `ManMoney_x.x.x_x64-setup.exe` (recommended) or `_x64_en-US.msi` |
-| Mac with Apple Silicon (M1/M2/M3/M4) | `ManMoney_x.x.x_aarch64.dmg` |
-| Mac with Intel processor | `ManMoney_x.x.x_x64.dmg` |
 | Linux — Debian, Ubuntu, Mint, and similar | `man-money_x.x.x_amd64.deb` |
 | Linux — other distributions | `ManMoney_x.x.x_amd64.AppImage` |
-
-Not sure which Mac you have? Click the Apple menu in the top-left corner and choose **About This Mac**. If it says "Apple M..." it's Apple Silicon; if it says "Intel" it's Intel.
 
 ### Step 2 — Install it
 
@@ -26,17 +22,6 @@ Not sure which Mac you have? Click the Apple menu in the top-left corner and cho
 2. Windows may show a SmartScreen warning saying "Windows protected your PC." This appears because the app is not commercially code-signed.
    - Click **More info**, then click **Run anyway**.
 3. Follow the installer prompts. ManMoney will appear in your Start menu when done.
-
-**macOS**
-
-1. Double-click the `.dmg` file. A window opens showing the ManMoney icon.
-2. Drag ManMoney into the Applications folder shortcut shown in that window.
-3. The first time you open ManMoney from Applications, macOS will block it with a message like *"ManMoney cannot be opened because it is from an unidentified developer."* This is because the app is not notarized through Apple. To get past it:
-   - Open **System Settings** → **Privacy & Security**.
-   - Scroll down until you see a message about ManMoney being blocked.
-   - Click **Open Anyway**, then confirm.
-   - Alternatively: right-click the app icon → **Open** → **Open** in the dialog that appears.
-4. After the first launch, macOS remembers your choice and opens normally from then on.
 
 **Linux — .deb (Debian, Ubuntu, Mint)**
 

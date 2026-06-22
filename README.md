@@ -11,12 +11,10 @@ Go to the **[Releases page](https://github.com/sard0x72/manmoney/releases)** and
 | Platform | File to download |
 |----------|-----------------|
 | Windows | `ManMoney_x.x.x_x64-setup.exe` or `_x64_en-US.msi` |
-| macOS (Apple Silicon) | `ManMoney_x.x.x_aarch64.dmg` |
-| macOS (Intel) | `ManMoney_x.x.x_x64.dmg` |
 | Linux (Debian/Ubuntu) | `man-money_x.x.x_amd64.deb` |
 | Linux (other) | `ManMoney_x.x.x_amd64.AppImage` |
 
-Full installation instructions — including how to get past security warnings on Windows and macOS — are in the **[Getting Started](https://github.com/sard0x72/manmoney/wiki/Getting-Started)** wiki page.
+Full installation instructions — including how to get past the security warning on Windows — are in the **[Getting Started](https://github.com/sard0x72/manmoney/wiki/Getting-Started)** wiki page.
 
 ## For developers
 

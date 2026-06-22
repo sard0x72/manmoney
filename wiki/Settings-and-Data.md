@@ -1,6 +1,20 @@
 # Settings and Data
 
-The Settings page is where you control the app's appearance and get your data in and out. It's also where the app's privacy promise is spelled out.
+The Settings page is where you control the app's appearance, choose which sections appear in the sidebar, and get your data in and out. It's also where the app's privacy promise is spelled out.
+
+## Navigation sections
+
+Each section of the app can be shown or hidden using the toggles at the top of Settings. Turn off anything you don't use — it disappears from the sidebar immediately.
+
+- **Transactions** — the full transaction log
+- **Budgets** — monthly spending limits
+- **Analytics** — charts and trend views
+- **Goals** — savings targets
+- **Recurring** — repeating bills and income
+- **Categories** — transaction labels
+- **Accounts** — your accounts and their balances
+
+Dashboard and Settings are always visible and cannot be hidden. If you hide a section while you're on it, the app takes you back to the Dashboard.
 
 ## Appearance
 

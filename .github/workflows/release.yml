@@ -20,12 +20,6 @@ jobs:
           - platform: windows-latest
             rust-target: ''
             args: '--bundles nsis,msi'
-          - platform: macos-latest
-            rust-target: aarch64-apple-darwin
-            args: '--target aarch64-apple-darwin --bundles dmg,app'
-          - platform: macos-latest
-            rust-target: x86_64-apple-darwin
-            args: '--target x86_64-apple-darwin --bundles dmg,app'
 
     runs-on: ${{ matrix.platform }}
 
