@@ -3,17 +3,18 @@ import {
   Target, Repeat, Tag, Wallet, Settings,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import type { HideableSection } from '../../store/useAppStore';
 import type { Page } from '../../types';
 
-const NAV_ITEMS: { page: Page; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+const NAV_ITEMS: { page: Page; label: string; icon: React.ComponentType<{ size?: number }>; hideable?: HideableSection }[] = [
   { page: 'dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-  { page: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { page: 'budgets',      label: 'Budgets',      icon: PieChart },
-  { page: 'analytics',   label: 'Analytics',    icon: BarChart3 },
-  { page: 'goals',        label: 'Goals',        icon: Target },
-  { page: 'recurring',    label: 'Recurring',    icon: Repeat },
-  { page: 'categories',   label: 'Categories',   icon: Tag },
-  { page: 'accounts',     label: 'Accounts',     icon: Wallet },
+  { page: 'transactions', label: 'Transactions', icon: ArrowLeftRight,  hideable: 'transactions' },
+  { page: 'budgets',      label: 'Budgets',      icon: PieChart,        hideable: 'budgets' },
+  { page: 'analytics',   label: 'Analytics',    icon: BarChart3,       hideable: 'analytics' },
+  { page: 'goals',        label: 'Goals',        icon: Target,          hideable: 'goals' },
+  { page: 'recurring',    label: 'Recurring',    icon: Repeat,          hideable: 'recurring' },
+  { page: 'categories',   label: 'Categories',   icon: Tag,             hideable: 'categories' },
+  { page: 'accounts',     label: 'Accounts',     icon: Wallet,          hideable: 'accounts' },
 ];
 
 function NavButton({ label, Icon, active, onClick }: {
@@ -67,7 +68,7 @@ function NavButton({ label, Icon, active, onClick }: {
 }
 
 export function Sidebar() {
-  const { currentPage, setPage } = useAppStore();
+  const { currentPage, setPage, visibleSections } = useAppStore();
 
   return (
     <aside style={{
@@ -107,7 +108,7 @@ export function Sidebar() {
         gap: 2,
         overflowY: 'auto',
       }}>
-        {NAV_ITEMS.map(({ page, label, icon: Icon }) => (
+        {NAV_ITEMS.filter(({ hideable }) => !hideable || visibleSections[hideable]).map(({ page, label, icon: Icon }) => (
           <NavButton
             key={page}
             label={label}

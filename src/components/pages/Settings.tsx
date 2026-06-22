@@ -1,10 +1,48 @@
 import { useState } from 'react';
 import { Download, Database, Sun, Moon, FileText, FileSpreadsheet, ShieldCheck, ArrowLeftRight, Tag, Wallet } from 'lucide-react';
-import { useAppStore } from '../../store/useAppStore';
+import { useAppStore, HIDEABLE_SECTIONS } from '../../store/useAppStore';
+import type { HideableSection } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { downloadBlob } from '../../lib/utils';
 import { PageHeader } from '../layout/PageHeader';
 import * as XLSX from 'xlsx';
+
+const SECTION_META: Record<HideableSection, { label: string; desc: string }> = {
+  transactions: { label: 'Transactions',  desc: 'Log and browse every income and expense entry.' },
+  budgets:      { label: 'Budgets',       desc: 'Set monthly spending limits per category.' },
+  analytics:    { label: 'Analytics',     desc: 'Charts and trends across your financial data.' },
+  goals:        { label: 'Goals',         desc: 'Track savings targets and milestones.' },
+  recurring:    { label: 'Recurring',     desc: 'Manage bills, subscriptions, and regular income.' },
+  categories:   { label: 'Categories',   desc: 'Organise transactions with custom categories.' },
+  accounts:     { label: 'Accounts',      desc: 'Bank accounts, wallets, and credit cards.' },
+};
+
+function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      onClick={onChange}
+      style={{
+        width: 40, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer',
+        background: on ? 'var(--clay)' : 'var(--line)',
+        position: 'relative', flexShrink: 0,
+        transition: 'background 160ms',
+        padding: 0,
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 3,
+        left: on ? 21 : 3,
+        width: 16, height: 16, borderRadius: '50%',
+        background: 'white',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        transition: 'left 160ms',
+        display: 'block',
+      }} />
+    </button>
+  );
+}
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -31,7 +69,7 @@ function Row({ label, desc, children }: { label: string; desc?: string; children
 }
 
 export function Settings() {
-  const { isDark, toggleTheme, transactions, categories, accounts, showToast } = useAppStore();
+  const { isDark, toggleTheme, transactions, categories, accounts, showToast, visibleSections, toggleSection } = useAppStore();
   const [dbPath, setDbPath] = useState('');
 
   const exportCSV = async () => {
@@ -73,6 +111,17 @@ export function Settings() {
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ maxWidth: 'var(--prose-max)', padding: '36px 44px 56px' }}>
+
+          <Group title="Navigation sections">
+            {HIDEABLE_SECTIONS.map(section => {
+              const { label, desc } = SECTION_META[section];
+              return (
+                <Row key={section} label={label} desc={desc}>
+                  <Toggle on={visibleSections[section]} onChange={() => toggleSection(section)} />
+                </Row>
+              );
+            })}
+          </Group>
 
           <Group title="Appearance">
             <Row label="Theme" desc="Switch between light and dark mode.">

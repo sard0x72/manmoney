@@ -3,10 +3,35 @@ import type { Account, Category, Transaction, Budget, SavingsGoal, RecurringTran
 import { api } from '../lib/api';
 import { currentYear, currentMonth } from '../lib/utils';
 
+export type HideableSection = 'transactions' | 'budgets' | 'analytics' | 'goals' | 'recurring' | 'categories' | 'accounts';
+
+export const HIDEABLE_SECTIONS: HideableSection[] = ['transactions', 'budgets', 'analytics', 'goals', 'recurring', 'categories', 'accounts'];
+
+const DEFAULT_VISIBLE: Record<HideableSection, boolean> = {
+  transactions: true, budgets: true, analytics: true, goals: true,
+  recurring: true, categories: true, accounts: true,
+};
+
+function loadVisibleSections(): Record<HideableSection, boolean> {
+  try {
+    const raw = localStorage.getItem('mm_visible_sections');
+    if (raw) return { ...DEFAULT_VISIBLE, ...JSON.parse(raw) };
+  } catch {}
+  return { ...DEFAULT_VISIBLE };
+}
+
+function saveVisibleSections(v: Record<HideableSection, boolean>) {
+  localStorage.setItem('mm_visible_sections', JSON.stringify(v));
+}
+
 interface AppState {
   // Navigation
   currentPage: Page;
   setPage: (page: Page) => void;
+
+  // Section visibility
+  visibleSections: Record<HideableSection, boolean>;
+  toggleSection: (section: HideableSection) => void;
 
   // Theme
   isDark: boolean;
@@ -48,7 +73,26 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   currentPage: 'dashboard',
-  setPage: (page) => set({ currentPage: page }),
+  setPage: (page) => {
+    const { visibleSections } = get();
+    const hideable = HIDEABLE_SECTIONS as readonly string[];
+    if (hideable.includes(page) && !visibleSections[page as HideableSection]) {
+      set({ currentPage: 'dashboard' });
+    } else {
+      set({ currentPage: page });
+    }
+  },
+
+  visibleSections: loadVisibleSections(),
+  toggleSection: (section) => {
+    const next = { ...get().visibleSections, [section]: !get().visibleSections[section] };
+    saveVisibleSections(next);
+    set({ visibleSections: next });
+    // If currently on a section that just got hidden, go to dashboard
+    if (!next[section] && get().currentPage === section) {
+      set({ currentPage: 'dashboard' });
+    }
+  },
 
   isDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
   toggleTheme: () => {
