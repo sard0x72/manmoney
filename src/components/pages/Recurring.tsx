@@ -165,7 +165,7 @@ export function Recurring() {
       />
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth: 820, padding: '32px 44px 56px' }}>
+        <div style={{ maxWidth: 820, margin: '0 auto', padding: '32px 44px 56px' }}>
           {recurring.length === 0 ? (
             <EmptyState
               icon={<Repeat size={22} />}
