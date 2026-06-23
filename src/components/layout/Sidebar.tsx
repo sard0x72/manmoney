@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, ArrowLeftRight, PieChart, BarChart3,
   Target, Repeat, Tag, Wallet, Settings,
@@ -17,20 +18,32 @@ const NAV_ITEMS: { page: Page; label: string; icon: React.ComponentType<{ size?:
   { page: 'accounts',     label: 'Accounts',     icon: Wallet,          hideable: 'accounts' },
 ];
 
-function NavButton({ label, Icon, active, onClick }: {
+function useCompact() {
+  const [compact, setCompact] = useState(window.innerWidth <= 1099);
+  useEffect(() => {
+    const handle = () => setCompact(window.innerWidth <= 1099);
+    window.addEventListener('resize', handle);
+    return () => window.removeEventListener('resize', handle);
+  }, []);
+  return compact;
+}
+
+function NavButton({ label, Icon, active, onClick, compact }: {
   label: string; Icon: React.ComponentType<{ size?: number }>;
-  active: boolean; onClick: () => void;
+  active: boolean; onClick: () => void; compact: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      title={compact ? label : undefined}
       style={{
         position: 'relative',
         width: '100%',
         display: 'flex',
         alignItems: 'center',
-        gap: 9,
-        padding: '8px 11px',
+        justifyContent: compact ? 'center' : 'flex-start',
+        gap: compact ? 0 : 9,
+        padding: compact ? '10px 0' : '8px 11px',
         borderRadius: 'var(--radius)',
         border: 'none',
         cursor: 'pointer',
@@ -49,7 +62,7 @@ function NavButton({ label, Icon, active, onClick }: {
         if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent';
       }}
     >
-      {active && (
+      {active && !compact && (
         <span style={{
           position: 'absolute',
           left: 0,
@@ -62,13 +75,14 @@ function NavButton({ label, Icon, active, onClick }: {
         }} />
       )}
       <Icon size={17} />
-      {label}
+      {!compact && label}
     </button>
   );
 }
 
 export function Sidebar() {
   const { currentPage, setPage, visibleSections } = useAppStore();
+  const compact = useCompact();
 
   return (
     <aside style={{
@@ -79,30 +93,41 @@ export function Sidebar() {
       borderRight: '1px solid var(--line)',
       display: 'flex',
       flexDirection: 'column',
+      transition: 'width 200ms var(--ease-out)',
+      overflow: 'hidden',
     }}>
       {/* Wordmark */}
-      <div style={{ padding: '22px 20px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{
+        padding: compact ? '16px 0 14px' : '22px 20px 18px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: compact ? 'center' : 'flex-start',
+        gap: 10,
+        flexShrink: 0,
+      }}>
         <img
           src="/logo.png"
           alt="ManMoney"
           style={{ width: 30, height: 30, borderRadius: 9, flexShrink: 0, boxShadow: 'var(--shadow-sm)' }}
         />
-        <span style={{
-          fontFamily: 'var(--font-serif)',
-          fontSize: 18,
-          fontWeight: 600,
-          color: 'var(--ink-strong)',
-          letterSpacing: '-0.01em',
-        }}>
-          ManMoney
-        </span>
+        {!compact && (
+          <span style={{
+            fontFamily: 'var(--font-serif)',
+            fontSize: 18,
+            fontWeight: 600,
+            color: 'var(--ink-strong)',
+            letterSpacing: '-0.01em',
+            whiteSpace: 'nowrap',
+          }}>
+            ManMoney
+          </span>
+        )}
       </div>
-
 
       {/* Nav */}
       <nav style={{
         flex: 1,
-        padding: '4px 12px',
+        padding: compact ? '4px 8px' : '4px 12px',
         display: 'flex',
         flexDirection: 'column',
         gap: 2,
@@ -115,23 +140,26 @@ export function Sidebar() {
             Icon={Icon}
             active={currentPage === page}
             onClick={() => setPage(page)}
+            compact={compact}
           />
         ))}
       </nav>
 
       {/* Foot */}
       <div style={{
-        padding: '10px 12px',
+        padding: compact ? '10px 8px' : '10px 12px',
         borderTop: '1px solid var(--line)',
         display: 'flex',
         flexDirection: 'column',
         gap: 2,
+        flexShrink: 0,
       }}>
         <NavButton
           label="Settings"
           Icon={Settings}
           active={currentPage === 'settings'}
           onClick={() => setPage('settings')}
+          compact={compact}
         />
       </div>
     </aside>

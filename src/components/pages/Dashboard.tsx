@@ -146,7 +146,7 @@ export function Dashboard() {
       {/* Editorial header */}
       <header style={{
         display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-        gap: 24, padding: '36px 44px 0',
+        gap: 24, padding: '36px var(--content-h-pad) 0',
       }}>
         <div>
           <div className="mm-eyebrow" style={{ marginBottom: 8 }}>{dayName} · {dateStr}</div>
@@ -166,9 +166,9 @@ export function Dashboard() {
         </button>
       </header>
 
-      <div style={{ maxWidth: 'var(--content-max)', padding: '28px 44px 64px' }}>
+      <div style={{ maxWidth: 'var(--content-max)', padding: '28px var(--content-h-pad) 64px' }}>
         {/* Stat cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        <div className="dash-stat-grid">
           {stats.map(s => (
             <div key={s.label} className="mm-card" style={{ padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -188,7 +188,7 @@ export function Dashboard() {
         </div>
 
         {/* Cash flow + This month */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginTop: 16 }}>
+        <div className="dash-main-grid">
           {/* Cash flow chart */}
           <div className="mm-card" style={{ padding: 24 }}>
             <div className="mm-card-header">
@@ -243,7 +243,7 @@ export function Dashboard() {
         </div>
 
         {/* Recent activity + Top spending */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+        <div className="dash-bottom-grid">
           {/* Recent activity */}
           <div className="mm-card" style={{ padding: 24 }}>
             <div className="mm-card-header">

@@ -109,6 +109,7 @@
     --sidebar-w: 248px;
     --content-max: 1100px;
     --prose-max: 640px;
+    --content-h-pad: 44px;
 
     /* ---- Type ---- */
     --font-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
@@ -408,6 +409,60 @@
     font-family: var(--font-sans);
     font-size: 12px;
     color: var(--ink-faint);
+  }
+}
+
+/* ================================================================
+   Responsive Layout
+   ================================================================ */
+@media (max-width: 1199px) {
+  :root {
+    --sidebar-w: 216px;
+    --content-h-pad: 32px;
+  }
+}
+
+@media (max-width: 1099px) {
+  :root {
+    --sidebar-w: 56px;
+    --content-h-pad: 20px;
+  }
+}
+
+/* Dashboard responsive grids */
+.dash-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.dash-main-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.dash-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.analytics-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1099px) {
+  .dash-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dash-main-grid,
+  .dash-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+  .analytics-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

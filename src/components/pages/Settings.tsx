@@ -110,7 +110,7 @@ export function Settings() {
       <PageHeader eyebrow="Preferences" title="Settings" />
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth: 'var(--prose-max)', padding: '36px 44px 56px' }}>
+        <div style={{ maxWidth: 'var(--prose-max)', padding: '36px var(--content-h-pad) 56px' }}>
 
           <Group title="Navigation sections">
             {HIDEABLE_SECTIONS.map(section => {

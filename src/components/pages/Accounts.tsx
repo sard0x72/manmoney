@@ -137,7 +137,7 @@ export function Accounts() {
       />
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth: 820, padding: '32px 44px 56px' }}>
+        <div style={{ maxWidth: 820, padding: '32px var(--content-h-pad) 56px' }}>
           {accounts.length === 0 ? (
             <EmptyState
               icon={<Wallet size={22} />}

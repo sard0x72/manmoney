@@ -111,9 +111,9 @@ export function Analytics() {
         </div>
       ) : (
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ maxWidth: 'var(--content-max)', padding: '28px 44px 64px' }}>
+          <div style={{ maxWidth: 'var(--content-max)', padding: '28px var(--content-h-pad) 64px' }}>
             {/* Headline figures */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            <div className="analytics-stat-grid">
               {[
                 { eyebrow: 'Avg income', value: avgIncome, sub: 'per month · last 12', mono: false },
                 { eyebrow: 'Avg spending', value: avgExpense, sub: 'per month · last 12', mono: false },
