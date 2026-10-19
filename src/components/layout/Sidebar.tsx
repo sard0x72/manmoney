@@ -106,7 +106,7 @@ export function Sidebar() {
         flexShrink: 0,
       }}>
         <img
-          src="/logo.png"
+          src="/logo.svg"
           alt="ManMoney"
           style={{ width: 30, height: 30, borderRadius: 9, flexShrink: 0, boxShadow: 'var(--shadow-sm)' }}
         />
