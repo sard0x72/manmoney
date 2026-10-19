@@ -47,7 +47,6 @@ pub struct Transaction {
     pub tags: String,
     pub is_recurring: bool,
     pub recurring_id: Option<String>,
-    pub transfer_account_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub category_name: Option<String>,
@@ -213,7 +212,47 @@ fn setup_database(conn: &Connection) -> rusqlite::Result<()> {
     "#)?;
 
     seed_defaults(conn)?;
+    migrate_transfers(conn)?;
     Ok(())
+}
+
+/// Transfers were removed as a transaction type. Each legacy transfer becomes an
+/// expense on the source account plus a matching income on the destination, so
+/// balances stay correct if either half is later edited or deleted.
+fn migrate_transfers(conn: &Connection) -> rusqlite::Result<()> {
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM transactions WHERE transaction_type='transfer'", [], |r| r.get(0))?;
+    if count == 0 { return Ok(()); }
+
+    let category_for = |kind: &str, preferred: &str| -> rusqlite::Result<String> {
+        conn.query_row(
+            "SELECT id FROM categories WHERE category_type=?1 ORDER BY (name=?2) DESC, is_default DESC, name LIMIT 1",
+            params![kind, preferred], |r| r.get(0))
+    };
+    let expense_cat = category_for("expense", "Other Expense")?;
+    let income_cat = category_for("income", "Other Income")?;
+
+    let tx = conn.unchecked_transaction()?;
+    let legacy: Vec<(String, f64, String, String, String, String, String, Option<String>, String)> = {
+        let mut stmt = tx.prepare(
+            "SELECT id,amount,date,notes,payee,payment_method,tags,transfer_account_id,created_at FROM transactions WHERE transaction_type='transfer'")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?,
+            r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        rows
+    };
+    let now = Utc::now().to_rfc3339();
+    for (id, amount, date, notes, payee, method, tags, to_id, created_at) in legacy {
+        tx.execute(
+            "UPDATE transactions SET transaction_type='expense',category_id=?1,transfer_account_id=NULL,updated_at=?2 WHERE id=?3",
+            params![expense_cat, now, id])?;
+        if let Some(to_id) = to_id {
+            tx.execute(
+                "INSERT INTO transactions(id,account_id,category_id,transaction_type,amount,date,notes,payee,payment_method,tags,is_recurring,created_at,updated_at) VALUES(?1,?2,?3,'income',?4,?5,?6,?7,?8,?9,0,?10,?11)",
+                params![Uuid::new_v4().to_string(), to_id, income_cat, amount, date, notes, payee, method, tags, created_at, now])?;
+        }
+    }
+    tx.commit()
 }
 
 fn seed_defaults(conn: &Connection) -> rusqlite::Result<()> {
@@ -373,7 +412,7 @@ fn get_transactions(
     let mut sql = r#"
         SELECT t.id,t.account_id,t.category_id,t.transaction_type,t.amount,
                t.date,t.notes,t.payee,t.payment_method,t.tags,
-               t.is_recurring,t.recurring_id,t.transfer_account_id,
+               t.is_recurring,t.recurring_id,
                t.created_at,t.updated_at,
                c.name,c.color,c.icon,a.name
         FROM transactions t
@@ -407,9 +446,9 @@ fn get_transactions(
         transaction_type: r.get(3)?, amount: r.get(4)?, date: r.get(5)?,
         notes: r.get(6)?, payee: r.get(7)?, payment_method: r.get(8)?, tags: r.get(9)?,
         is_recurring: r.get::<_, i32>(10)? != 0, recurring_id: r.get(11)?,
-        transfer_account_id: r.get(12)?, created_at: r.get(13)?, updated_at: r.get(14)?,
-        category_name: r.get(15)?, category_color: r.get(16)?, category_icon: r.get(17)?,
-        account_name: r.get(18)?,
+        created_at: r.get(12)?, updated_at: r.get(13)?,
+        category_name: r.get(14)?, category_color: r.get(15)?, category_icon: r.get(16)?,
+        account_name: r.get(17)?,
     })).map_err(|e| e.to_string())?
     .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
     Ok(result)
@@ -420,26 +459,19 @@ fn create_transaction(
     state: State<DbState>,
     account_id: String, category_id: String, transaction_type: String, amount: f64,
     date: String, notes: String, payee: String, payment_method: String, tags: String,
-    transfer_account_id: Option<String>,
 ) -> Result<Transaction, String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT INTO transactions(id,account_id,category_id,transaction_type,amount,date,notes,payee,payment_method,tags,is_recurring,transfer_account_id,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,0,?11,?12,?12)",
-        params![id, account_id, category_id, transaction_type, amount, date, notes, payee, payment_method, tags, transfer_account_id, now],
+        "INSERT INTO transactions(id,account_id,category_id,transaction_type,amount,date,notes,payee,payment_method,tags,is_recurring,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,0,?11,?11)",
+        params![id, account_id, category_id, transaction_type, amount, date, notes, payee, payment_method, tags, now],
     ).map_err(|e| e.to_string())?;
 
     match transaction_type.as_str() {
         "income" => { conn.execute("UPDATE accounts SET balance=balance+?1 WHERE id=?2", params![amount, account_id]).map_err(|e| e.to_string())?; }
         "expense" => { conn.execute("UPDATE accounts SET balance=balance-?1 WHERE id=?2", params![amount, account_id]).map_err(|e| e.to_string())?; }
-        "transfer" => {
-            if let Some(ref to_id) = transfer_account_id {
-                conn.execute("UPDATE accounts SET balance=balance-?1 WHERE id=?2", params![amount, account_id]).map_err(|e| e.to_string())?;
-                conn.execute("UPDATE accounts SET balance=balance+?1 WHERE id=?2", params![amount, to_id]).map_err(|e| e.to_string())?;
-            }
-        }
         _ => {}
     }
 
@@ -452,7 +484,7 @@ fn create_transaction(
 
     Ok(Transaction {
         id, account_id, category_id, transaction_type, amount, date, notes, payee,
-        payment_method, tags, is_recurring: false, recurring_id: None, transfer_account_id,
+        payment_method, tags, is_recurring: false, recurring_id: None,
         created_at: now.clone(), updated_at: now,
         category_name: Some(cat_name), category_color: Some(cat_color),
         category_icon: Some(cat_icon), account_name: Some(acct_name),
@@ -468,20 +500,14 @@ fn update_transaction(
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     let now = Utc::now().to_rfc3339();
 
-    let (old_type, old_amount, old_acct, old_to): (String, f64, String, Option<String>) = conn.query_row(
-        "SELECT transaction_type,amount,account_id,transfer_account_id FROM transactions WHERE id=?1",
-        params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+    let (old_type, old_amount, old_acct): (String, f64, String) = conn.query_row(
+        "SELECT transaction_type,amount,account_id FROM transactions WHERE id=?1",
+        params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))
     ).map_err(|e| e.to_string())?;
 
     match old_type.as_str() {
         "income" => { conn.execute("UPDATE accounts SET balance=balance-?1 WHERE id=?2", params![old_amount, old_acct]).map_err(|e| e.to_string())?; }
         "expense" => { conn.execute("UPDATE accounts SET balance=balance+?1 WHERE id=?2", params![old_amount, old_acct]).map_err(|e| e.to_string())?; }
-        "transfer" => {
-            if let Some(ref to) = old_to {
-                conn.execute("UPDATE accounts SET balance=balance+?1 WHERE id=?2", params![old_amount, old_acct]).map_err(|e| e.to_string())?;
-                conn.execute("UPDATE accounts SET balance=balance-?1 WHERE id=?2", params![old_amount, to]).map_err(|e| e.to_string())?;
-            }
-        }
         _ => {}
     }
     match transaction_type.as_str() {
@@ -499,20 +525,14 @@ fn update_transaction(
 #[tauri::command]
 fn delete_transaction(state: State<DbState>, id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
-    let (old_type, old_amount, old_acct, old_to): (String, f64, String, Option<String>) = conn.query_row(
-        "SELECT transaction_type,amount,account_id,transfer_account_id FROM transactions WHERE id=?1",
-        params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+    let (old_type, old_amount, old_acct): (String, f64, String) = conn.query_row(
+        "SELECT transaction_type,amount,account_id FROM transactions WHERE id=?1",
+        params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))
     ).map_err(|e| e.to_string())?;
 
     match old_type.as_str() {
         "income" => { conn.execute("UPDATE accounts SET balance=balance-?1 WHERE id=?2", params![old_amount, old_acct]).map_err(|e| e.to_string())?; }
         "expense" => { conn.execute("UPDATE accounts SET balance=balance+?1 WHERE id=?2", params![old_amount, old_acct]).map_err(|e| e.to_string())?; }
-        "transfer" => {
-            if let Some(ref to) = old_to {
-                conn.execute("UPDATE accounts SET balance=balance+?1 WHERE id=?2", params![old_amount, old_acct]).map_err(|e| e.to_string())?;
-                conn.execute("UPDATE accounts SET balance=balance-?1 WHERE id=?2", params![old_amount, to]).map_err(|e| e.to_string())?;
-            }
-        }
         _ => {}
     }
     conn.execute("DELETE FROM transactions WHERE id=?1", params![id]).map_err(|e| e.to_string())?;

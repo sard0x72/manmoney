@@ -24,7 +24,6 @@ You don't edit a balance directly after creation. Instead:
 
 - An **income** transaction adds to the account's balance.
 - An **expense** transaction subtracts from it.
-- A **transfer** subtracts from the source account and adds the same amount to the destination account.
 
 Editing or deleting a transaction reverses its old effect and applies the new one, so balances always stay consistent with your transaction history. This is why the balance field is locked when you edit an account.
 

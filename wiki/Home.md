@@ -7,7 +7,7 @@ This wiki explains what each part of the app does and how to get the most out of
 ## What you can do with it
 
 - Keep track of your **accounts** (cash, bank, credit, investment) and watch their balances update automatically as you record activity.
-- Record **transactions** — income, expenses, and transfers between your own accounts.
+- Record **transactions** — income and expenses.
 - Organize spending and income with **categories**, including the defaults that ship with the app and any custom ones you add.
 - Set monthly **budgets** per category and see how much you have left as the month goes on.
 - Track **savings goals** with a target amount, an optional deadline, and a progress ring.

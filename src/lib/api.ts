@@ -73,7 +73,6 @@ export const api = {
       payee: string;
       payment_method: string;
       tags: string;
-      transfer_account_id?: string;
     }) => invoke<Transaction>('create_transaction', {
       accountId: data.account_id,
       categoryId: data.category_id,
@@ -84,7 +83,6 @@ export const api = {
       payee: data.payee,
       paymentMethod: data.payment_method,
       tags: data.tags,
-      transferAccountId: data.transfer_account_id,
     }),
     update: (data: {
       id: string;

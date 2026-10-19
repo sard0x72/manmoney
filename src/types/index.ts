@@ -22,7 +22,7 @@ export interface Transaction {
   id: string;
   account_id: string;
   category_id: string;
-  transaction_type: 'income' | 'expense' | 'transfer';
+  transaction_type: 'income' | 'expense';
   amount: number;
   date: string;
   notes: string;
@@ -31,7 +31,6 @@ export interface Transaction {
   tags: string;
   is_recurring: boolean;
   recurring_id?: string;
-  transfer_account_id?: string;
   created_at: string;
   updated_at: string;
   // joined
