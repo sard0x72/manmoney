@@ -34,7 +34,7 @@ Editing and deleting work from the buttons that appear when you hover over a goa
 ## Tips
 
 - Set a **deadline** for goals with a date attached (a trip, a tax bill) so the urgency is visible.
-- When you save money in real life, pair it with two quick steps: a **transfer** to your savings account in [[Transactions]], and a bump to the goal's saved amount here.
+- When you save money in real life, bump the goal's saved amount here right away so the card reflects it.
 - Break a very large goal into a couple of smaller ones if a single giant target feels discouraging — steady progress on a smaller number is easier to sustain.
 - Use the notes field to record why the goal matters; it helps when you're deciding whether to dip into it.
 

@@ -1,5 +1,7 @@
 # ManMoney
 
+The name comes from **man**age **money** — that's what the app is for.
+
 A private, offline-first personal finance tracker for the desktop. Track accounts, transactions, budgets, savings goals, and recurring bills — all stored locally on your device, never sent to a server.
 
 Built with Tauri, React, TypeScript, and Rust (SQLite for storage).
@@ -30,10 +32,12 @@ Use `npm run tauri dev` — it runs the frontend and Rust backend together as a 
 ## What's inside
 
 - **Accounts** — cash, bank, credit, and investment, with balances driven by your transactions
-- **Transactions** — income, expenses, and transfers, with search, filters, tags, and notes
+- **Transactions** — income and expenses, with search, filters, tags, and notes
 - **Budgets** — monthly per-category spending limits with progress tracking
 - **Analytics** — daily cash flow, 12-month trends, and category breakdowns
 - **Savings Goals** — track progress toward what you're saving for
+- **Tuition** — track tuition fees: how much you've paid and how much is left
+- **Loans** — money borrowed from or lent to friends, and what's been paid back
 - **Recurring** — schedule repeating bills and income
 - **Export** — CSV, Excel, or JSON, any time
 

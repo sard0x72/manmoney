@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, monthName } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { PageHeader } from '../layout/PageHeader';
@@ -41,10 +42,7 @@ function BudgetForm({ onSave, onCancel, year, month }: { onSave: () => void; onC
       </div>
       <div>
         <label className="label mb-1.5 block">Budget Amount</label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-muted))] text-sm">$</span>
-          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="input pl-7" placeholder="0.00" autoFocus />
-        </div>
+        <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
       </div>
       <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
         Setting a budget for {monthName(month)} {year}. Existing budgets for this category will be updated.

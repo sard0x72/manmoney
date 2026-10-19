@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Trash2, Pencil, X, ArrowLeftRight } from 'lucide-react';
+import { Plus, Search, Trash2, Pencil, X, ReceiptText } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { PageHeader } from '../layout/PageHeader';
@@ -13,7 +14,7 @@ const PAYMENT_METHODS = ['cash', 'bank transfer', 'credit card', 'debit card', '
 
 function TransactionForm({ tx, onSave, onCancel }: { tx?: Transaction; onSave: () => void; onCancel: () => void }) {
   const { accounts, categories, showToast } = useAppStore();
-  const [type, setType] = useState<'income' | 'expense' | 'transfer'>((tx?.transaction_type as any) ?? 'expense');
+  const [type, setType] = useState<'income' | 'expense'>(tx?.transaction_type ?? 'expense');
   const [amount, setAmount] = useState(tx?.amount?.toString() ?? '');
   const [date, setDate] = useState(tx?.date ?? todayISO());
   const [accountId, setAccountId] = useState(tx?.account_id ?? accounts[0]?.id ?? '');
@@ -22,7 +23,6 @@ function TransactionForm({ tx, onSave, onCancel }: { tx?: Transaction; onSave: (
   const [notes, setNotes] = useState(tx?.notes ?? '');
   const [method, setMethod] = useState(tx?.payment_method ?? 'cash');
   const [tags, setTags] = useState(tx?.tags ?? '');
-  const [toAccountId, setToAccountId] = useState(tx?.transfer_account_id ?? '');
   const [saving, setSaving] = useState(false);
 
   const filteredCategories = categories.filter(c => c.category_type === (type === 'expense' ? 'expense' : 'income'));
@@ -35,17 +35,14 @@ function TransactionForm({ tx, onSave, onCancel }: { tx?: Transaction; onSave: (
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return showToast('Enter a valid amount', 'error');
     if (!accountId) return showToast('Select an account', 'error');
-    if (!categoryId && type !== 'transfer') return showToast('Select a category', 'error');
+    if (!categoryId) return showToast('Select a category', 'error');
     setSaving(true);
     try {
-      const catId = type === 'transfer'
-        ? (categories.find(c => c.name === 'Other Income' || c.name === 'Other Expense')?.id ?? categories[0]?.id ?? '')
-        : categoryId;
       if (tx) {
-        await api.transactions.update({ id: tx.id, account_id: accountId, category_id: catId, transaction_type: type, amount: amt, date, notes, payee, payment_method: method, tags });
+        await api.transactions.update({ id: tx.id, account_id: accountId, category_id: categoryId, transaction_type: type, amount: amt, date, notes, payee, payment_method: method, tags });
         showToast('Transaction updated');
       } else {
-        await api.transactions.create({ account_id: accountId, category_id: catId, transaction_type: type, amount: amt, date, notes, payee, payment_method: method, tags, transfer_account_id: type === 'transfer' ? toAccountId : undefined });
+        await api.transactions.create({ account_id: accountId, category_id: categoryId, transaction_type: type, amount: amt, date, notes, payee, payment_method: method, tags });
         showToast('Transaction added');
       }
       onSave();
@@ -57,7 +54,7 @@ function TransactionForm({ tx, onSave, onCancel }: { tx?: Transaction; onSave: (
     <div className="space-y-4">
       {/* Type segmented */}
       <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)' }}>
-        {(['expense', 'income', 'transfer'] as const).map(t => (
+        {(['expense', 'income'] as const).map(t => (
           <button key={t} onClick={() => setType(t)} style={{
             flex: 1, padding: '7px 0', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer',
             fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, textTransform: 'capitalize',
@@ -69,10 +66,7 @@ function TransactionForm({ tx, onSave, onCancel }: { tx?: Transaction; onSave: (
       </div>
       <div>
         <label className="label mb-1.5 block">Amount</label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-muted))] text-sm">$</span>
-          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" min="0" step="0.01" className="input pl-7" autoFocus />
-        </div>
+        <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} min="0" step="0.01" autoFocus />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -86,23 +80,13 @@ function TransactionForm({ tx, onSave, onCancel }: { tx?: Transaction; onSave: (
           </select>
         </div>
       </div>
-      {type !== 'transfer' ? (
-        <div>
-          <label className="label mb-1.5 block">Category</label>
-          <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="input">
-            <option value="">Select category…</option>
-            {filteredCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      ) : (
-        <div>
-          <label className="label mb-1.5 block">To Account</label>
-          <select value={toAccountId} onChange={e => setToAccountId(e.target.value)} className="input">
-            <option value="">Select account…</option>
-            {accounts.filter(a => a.id !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-      )}
+      <div>
+        <label className="label mb-1.5 block">Category</label>
+        <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="input">
+          <option value="">Select category…</option>
+          {filteredCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label mb-1.5 block">Payee</label>
@@ -196,7 +180,6 @@ export function Transactions() {
           <option value="">All types</option>
           <option value="income">Income</option>
           <option value="expense">Expense</option>
-          <option value="transfer">Transfer</option>
         </select>
         <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} className="input" style={{ width: 140, fontSize: 13 }}>
           <option value="">All accounts</option>
@@ -227,7 +210,7 @@ export function Transactions() {
             </div>
           ) : transactions.length === 0 ? (
             <EmptyState
-              icon={<ArrowLeftRight size={22} />}
+              icon={<ReceiptText size={22} />}
               title="Nothing matches"
               description="Try a different search or clear your filters."
               action={hasFilters ? <button onClick={() => { setSearch(''); setFilterType(''); setFilterAccount(''); setFilterCategory(''); }} className="btn-secondary">Clear filters</button>
@@ -294,11 +277,9 @@ export function Transactions() {
                       <span style={{
                         fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
                         fontSize: 14, fontWeight: 500,
-                        color: t.transaction_type === 'income' ? 'var(--positive)'
-                          : t.transaction_type === 'expense' ? 'var(--negative)'
-                          : 'var(--clay)',
+                        color: t.transaction_type === 'income' ? 'var(--positive)' : 'var(--negative)',
                       }}>
-                        {t.transaction_type === 'income' ? '+' : t.transaction_type === 'expense' ? '−' : '↔'}
+                        {t.transaction_type === 'income' ? '+' : '−'}
                         {formatCurrency(t.amount)}
                       </span>
                     </td>

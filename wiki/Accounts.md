@@ -8,8 +8,7 @@ Each account has:
 
 - A **name** (for example "Main Checking" or "Cash Wallet").
 - A **type**: cash, bank, credit, or investment. The type only affects grouping and the icon — it doesn't change how balances are calculated.
-- A **balance**, shown in the account's currency.
-- A **currency**. The list includes USD, EUR, GBP, JPY, CAD, AUD, CHF, INR, BRL, MXN, and UZS (Uzbek Sum).
+- A **balance**, shown in the app's currency. All accounts share the one currency set in [[Settings and Data]].
 - A **color** used for its icon and accents around the app.
 
 ## Creating an account
@@ -24,7 +23,6 @@ You don't edit a balance directly after creation. Instead:
 
 - An **income** transaction adds to the account's balance.
 - An **expense** transaction subtracts from it.
-- A **transfer** subtracts from the source account and adds the same amount to the destination account.
 
 Editing or deleting a transaction reverses its old effect and applies the new one, so balances always stay consistent with your transaction history. This is why the balance field is locked when you edit an account.
 
@@ -34,7 +32,7 @@ The Accounts page groups your accounts by type and shows a subtotal for each gro
 
 ## Editing and deleting
 
-- **Edit** lets you change the name, type, currency, and color. The balance stays read-only.
+- **Edit** lets you change the name, type, and color. The balance stays read-only.
 - **Delete** removes the account. Transactions that referenced it are left in place, but their balance is no longer tracked against that account. Delete with care — it's cleaner to keep an account and simply stop using it than to delete one with lots of history.
 
 ## Tips

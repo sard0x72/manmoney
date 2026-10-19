@@ -49,7 +49,6 @@ If you ever see an error mentioning a missing key like `accountType` or `categor
 Balances are calculated entirely from transactions, so the fix is always in the transaction history, not the account:
 
 - Check for a **miscategorized or wrong-type** transaction (an expense entered as income, or vice versa).
-- Check for a **transfer entered as two separate transactions**, which double-counts.
 - Make sure no transaction is **missing or duplicated**.
 
 Edit the offending transaction — the app reverses its old effect and applies the corrected one. See [[Transactions]].

@@ -1,22 +1,7 @@
 import { useEffect, useState } from 'react';
-import {
-  LayoutDashboard, ArrowLeftRight, PieChart, BarChart3,
-  Target, Repeat, Tag, Wallet, Settings,
-} from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import type { HideableSection } from '../../store/useAppStore';
-import type { Page } from '../../types';
-
-const NAV_ITEMS: { page: Page; label: string; icon: React.ComponentType<{ size?: number }>; hideable?: HideableSection }[] = [
-  { page: 'dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-  { page: 'transactions', label: 'Transactions', icon: ArrowLeftRight,  hideable: 'transactions' },
-  { page: 'budgets',      label: 'Budgets',      icon: PieChart,        hideable: 'budgets' },
-  { page: 'analytics',   label: 'Analytics',    icon: BarChart3,       hideable: 'analytics' },
-  { page: 'goals',        label: 'Goals',        icon: Target,          hideable: 'goals' },
-  { page: 'recurring',    label: 'Recurring',    icon: Repeat,          hideable: 'recurring' },
-  { page: 'categories',   label: 'Categories',   icon: Tag,             hideable: 'categories' },
-  { page: 'accounts',     label: 'Accounts',     icon: Wallet,          hideable: 'accounts' },
-];
+import { NAV_ITEMS } from '../../lib/nav';
 
 function useCompact() {
   const [compact, setCompact] = useState(window.innerWidth <= 1099);
@@ -81,7 +66,7 @@ function NavButton({ label, Icon, active, onClick, compact }: {
 }
 
 export function Sidebar() {
-  const { currentPage, setPage, visibleSections } = useAppStore();
+  const { currentPage, setPage, visibleSections, navOrder } = useAppStore();
   const compact = useCompact();
 
   return (
@@ -106,7 +91,7 @@ export function Sidebar() {
         flexShrink: 0,
       }}>
         <img
-          src="/logo.png"
+          src="/logo.svg"
           alt="ManMoney"
           style={{ width: 30, height: 30, borderRadius: 9, flexShrink: 0, boxShadow: 'var(--shadow-sm)' }}
         />
@@ -133,16 +118,21 @@ export function Sidebar() {
         gap: 2,
         overflowY: 'auto',
       }}>
-        {NAV_ITEMS.filter(({ hideable }) => !hideable || visibleSections[hideable]).map(({ page, label, icon: Icon }) => (
-          <NavButton
-            key={page}
-            label={label}
-            Icon={Icon}
-            active={currentPage === page}
-            onClick={() => setPage(page)}
-            compact={compact}
-          />
-        ))}
+        {navOrder.map(page => {
+          if (page === 'settings') return null;
+          const { label, icon, hideable } = NAV_ITEMS[page];
+          if (hideable && !visibleSections[hideable]) return null;
+          return (
+            <NavButton
+              key={page}
+              label={label}
+              Icon={icon}
+              active={currentPage === page}
+              onClick={() => setPage(page)}
+              compact={compact}
+            />
+          );
+        })}
       </nav>
 
       {/* Foot */}

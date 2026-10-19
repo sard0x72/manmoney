@@ -5,13 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number, currency = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+export const CURRENCIES = ['USD','EUR','GBP','JPY','CNY','KRW','CAD','AUD','CHF','INR','BRL','MXN','RUB','TRY','KZT','UZS'];
+
+// The app-wide display currency, chosen in Settings. Kept here rather than read
+// from the store so formatCurrency stays a plain function (the store imports utils).
+let appCurrency = 'USD';
+export function setAppCurrency(currency: string) { appCurrency = currency; }
+export function getAppCurrency(): string { return appCurrency; }
+
+// Omitting fraction digits lets Intl use each currency's own (JPY 0, USD 2).
+export function formatCurrency(amount: number, currency = appCurrency): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+}
+
+export function currencySymbol(currency = appCurrency): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, currencyDisplay: 'narrowSymbol' })
+    .formatToParts(0).find(p => p.type === 'currency')?.value ?? currency;
 }
 
 export function formatDate(dateStr: string): string {

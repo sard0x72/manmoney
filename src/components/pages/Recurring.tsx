@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { PageHeader } from '../layout/PageHeader';
 
@@ -59,10 +60,7 @@ function RecurringForm({ onSave, onCancel }: { onSave: () => void; onCancel: () 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label mb-1.5 block">Amount</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-muted))] text-sm">$</span>
-            <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="input pl-7" placeholder="0.00" autoFocus />
-          </div>
+          <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
         </div>
         <div>
           <label className="label mb-1.5 block">Frequency</label>

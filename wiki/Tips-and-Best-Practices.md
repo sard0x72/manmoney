@@ -10,7 +10,6 @@ The app rewards a little consistency. None of these are rules — they're habits
 
 ## Keep your balances honest
 
-- **Use transfers for your own money.** Moving cash between your accounts is a transfer, not an expense plus an income. This keeps your income and expense totals from being inflated. See [[Transactions]].
 - **Fix mistakes by editing, not deleting and re-adding.** Editing correctly reverses the old balance effect and applies the new one.
 - **If a balance looks wrong, look at transactions.** The balance is always a consequence of your transaction history.
 

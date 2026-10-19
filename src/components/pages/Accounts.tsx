@@ -4,12 +4,12 @@ import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { PageHeader } from '../layout/PageHeader';
 import type { Account } from '../../types';
 
 const COLORS = ['#BD5C42','#4E7A52','#B23E2E','#B5852A','#8A5A78','#3F7E7A','#A87E2E','#B05772','#6E7A3F','#5B6675'];
-const CURRENCIES = ['USD','EUR','GBP','JPY','CAD','AUD','CHF','INR','BRL','MXN','UZS'];
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   cash: Wallet,
@@ -19,11 +19,10 @@ const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
 };
 
 function AccountForm({ acct, onSave, onCancel }: { acct?: Account; onSave: () => void; onCancel: () => void }) {
-  const { showToast } = useAppStore();
+  const { showToast, currency } = useAppStore();
   const [name, setName] = useState(acct?.name ?? '');
   const [type, setType] = useState<Account['account_type']>(acct?.account_type ?? 'bank');
   const [balance, setBalance] = useState(acct?.balance?.toString() ?? '0');
-  const [currency, setCurrency] = useState(acct?.currency ?? 'USD');
   const [color, setColor] = useState(acct?.color ?? COLORS[0]);
   const [saving, setSaving] = useState(false);
 
@@ -66,21 +65,10 @@ function AccountForm({ acct, onSave, onCancel }: { acct?: Account; onSave: () =>
           })}
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label mb-1.5 block">{acct ? 'Current Balance' : 'Opening Balance'}</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-muted))] text-sm">$</span>
-            <input type="number" value={balance} onChange={e => setBalance(e.target.value)} className="input pl-7" placeholder="0.00" disabled={!!acct} />
-          </div>
-          {acct && <p className="text-xs text-[hsl(var(--text-muted))] mt-1">Balance is managed through transactions</p>}
-        </div>
-        <div>
-          <label className="label mb-1.5 block">Currency</label>
-          <select value={currency} onChange={e => setCurrency(e.target.value)} className="input">
-            {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+      <div>
+        <label className="label mb-1.5 block">{acct ? 'Current Balance' : 'Opening Balance'}</label>
+        <MoneyInput value={balance} onChange={e => setBalance(e.target.value)} disabled={!!acct} />
+        {acct && <p className="text-xs text-[hsl(var(--text-muted))] mt-1">Balance is managed through transactions</p>}
       </div>
       <div>
         <label className="label mb-2 block">Color</label>
@@ -205,7 +193,6 @@ export function Accounts() {
                           }}>
                             {a.account_type}
                           </span>
-                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>{a.currency}</span>
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
@@ -214,7 +201,7 @@ export function Accounts() {
                           fontSize: 18, fontWeight: 500,
                           color: neg ? 'var(--negative)' : 'var(--ink-strong)',
                         }}>
-                          {formatCurrency(Math.abs(a.balance), a.currency)}
+                          {formatCurrency(Math.abs(a.balance))}
                         </div>
                         {neg && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--negative)', marginTop: 2 }}>owed</div>}
                       </div>
