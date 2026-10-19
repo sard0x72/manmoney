@@ -1,21 +1,26 @@
 import { useState } from 'react';
-import { Download, Database, Sun, Moon, FileText, FileSpreadsheet, ShieldCheck, ArrowLeftRight, Tag, Wallet } from 'lucide-react';
-import { useAppStore, HIDEABLE_SECTIONS } from '../../store/useAppStore';
-import type { HideableSection } from '../../store/useAppStore';
+import { Download, Database, FileText, FileSpreadsheet, ShieldCheck, ReceiptText, Tag, Wallet, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
+import { useAppStore, DEFAULT_NAV_ORDER } from '../../store/useAppStore';
 import { api } from '../../lib/api';
-import { downloadBlob } from '../../lib/utils';
+import { downloadBlob, CURRENCIES } from '../../lib/utils';
+import { NAV_ITEMS } from '../../lib/nav';
 import { PageHeader } from '../layout/PageHeader';
 import * as XLSX from 'xlsx';
 
-const SECTION_META: Record<HideableSection, { label: string; desc: string }> = {
-  transactions: { label: 'Transactions',  desc: 'Log and browse every income and expense entry.' },
-  budgets:      { label: 'Budgets',       desc: 'Set monthly spending limits per category.' },
-  analytics:    { label: 'Analytics',     desc: 'Charts and trends across your financial data.' },
-  goals:        { label: 'Goals',         desc: 'Track savings targets and milestones.' },
-  recurring:    { label: 'Recurring',     desc: 'Manage bills, subscriptions, and regular income.' },
-  categories:   { label: 'Categories',   desc: 'Organise transactions with custom categories.' },
-  accounts:     { label: 'Accounts',      desc: 'Bank accounts, wallets, and credit cards.' },
-};
+function MoveButton({ dir, disabled, onClick, label }: { dir: 'up' | 'down'; disabled: boolean; onClick: () => void; label: string }) {
+  return (
+    <button onClick={onClick} disabled={disabled} aria-label={label} title={label}
+      style={{
+        display: 'flex', padding: 3, borderRadius: 6, border: 'none', background: 'none',
+        cursor: disabled ? 'default' : 'pointer',
+        color: disabled ? 'var(--line-strong)' : 'var(--ink-muted)',
+      }}
+      onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.background = 'var(--paper-sunk)'; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}>
+      {dir === 'up' ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+    </button>
+  );
+}
 
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
   return (
@@ -69,7 +74,8 @@ function Row({ label, desc, children }: { label: string; desc?: string; children
 }
 
 export function Settings() {
-  const { isDark, toggleTheme, transactions, categories, accounts, showToast, visibleSections, toggleSection } = useAppStore();
+  const { currency, setCurrency, transactions, categories, accounts, showToast, visibleSections, toggleSection, navOrder, moveNavItem, resetNavOrder } = useAppStore();
+  const isDefaultOrder = navOrder.every((p, i) => p === DEFAULT_NAV_ORDER[i]);
   const [dbPath, setDbPath] = useState('');
 
   const exportCSV = async () => {
@@ -112,23 +118,45 @@ export function Settings() {
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ maxWidth: 'var(--prose-max)', padding: 'calc(36px * var(--v-rhythm)) var(--content-h-pad) calc(56px * var(--v-rhythm))' }}>
 
-          <Group title="Navigation sections">
-            {HIDEABLE_SECTIONS.map(section => {
-              const { label, desc } = SECTION_META[section];
+          <Group title="Sidebar menu">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '6px 0 4px' }}>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
+                Use the arrows to reorder the sidebar. Switch a section off to hide it.
+              </p>
+              {!isDefaultOrder && (
+                <button onClick={resetNavOrder} className="btn-ghost" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', fontSize: 12, flexShrink: 0 }}>
+                  <RotateCcw size={12} /> Reset order
+                </button>
+              )}
+            </div>
+            {navOrder.map((page, i) => {
+              if (page === 'settings') return null;
+              const { label, desc, icon: Icon, hideable } = NAV_ITEMS[page];
+              const hidden = !!hideable && !visibleSections[hideable];
               return (
-                <Row key={section} label={label} desc={desc}>
-                  <Toggle on={visibleSections[section]} onChange={() => toggleSection(section)} />
-                </Row>
+                <div key={page} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                    <MoveButton dir="up" label={`Move ${label} up`} disabled={i === 0} onClick={() => moveNavItem(page, -1)} />
+                    <MoveButton dir="down" label={`Move ${label} down`} disabled={i === navOrder.length - 1} onClick={() => moveNavItem(page, 1)} />
+                  </div>
+                  <span style={{ color: hidden ? 'var(--ink-faint)' : 'var(--ink-muted)', display: 'flex', flexShrink: 0 }}><Icon size={17} /></span>
+                  <div style={{ flex: 1, minWidth: 0, opacity: hidden ? 0.55 : 1 }}>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14.5, fontWeight: 500, color: 'var(--ink)' }}>{label}</div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)', marginTop: 2 }}>{desc}</div>
+                  </div>
+                  {hideable
+                    ? <Toggle on={visibleSections[hideable]} onChange={() => toggleSection(hideable)} />
+                    : <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-faint)' }}>Always shown</span>}
+                </div>
               );
             })}
           </Group>
 
-          <Group title="Appearance">
-            <Row label="Theme" desc="Switch between light and dark mode.">
-              <button onClick={toggleTheme} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                {isDark ? <Sun size={15} /> : <Moon size={15} />}
-                {isDark ? 'Light Mode' : 'Dark Mode'}
-              </button>
+          <Group title="General">
+            <Row label="Currency" desc="The one currency used for every account and amount in the app.">
+              <select value={currency} onChange={e => setCurrency(e.target.value)} className="input" style={{ width: 110 }}>
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </Row>
           </Group>
 
@@ -203,7 +231,7 @@ export function Settings() {
               background: 'var(--paper-sunk)',
             }}>
               {[
-                { icon: <ArrowLeftRight size={13} />, value: transactions.length, label: 'transactions' },
+                { icon: <ReceiptText size={13} />, value: transactions.length, label: 'transactions' },
                 { icon: <Wallet size={13} />, value: accounts.length, label: 'accounts' },
                 { icon: <Tag size={13} />, value: categories.length, label: 'categories' },
               ].map((stat, i) => (

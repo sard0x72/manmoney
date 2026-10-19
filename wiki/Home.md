@@ -11,6 +11,8 @@ This wiki explains what each part of the app does and how to get the most out of
 - Organize spending and income with **categories**, including the defaults that ship with the app and any custom ones you add.
 - Set monthly **budgets** per category and see how much you have left as the month goes on.
 - Track **savings goals** with a target amount, an optional deadline, and a progress ring.
+- Track **tuition fees** — how much you've paid and how much is left.
+- Keep track of **loans** with friends — money you borrowed or lent, and how much has come back.
 - Schedule **recurring transactions** for bills, subscriptions, and regular income so you don't have to remember them.
 - Explore your money over time in **Analytics** — daily cash flow, 12-month trends, and category breakdowns.
 - Get a quick read on the month from the **Dashboard**, including a financial health score.
@@ -25,10 +27,14 @@ The sidebar on the left is how you move around. Each item there has its own page
 - [[Budgets]] — set and watch monthly spending limits
 - [[Analytics]] — charts and breakdowns of your money
 - [[Savings Goals]] — track progress toward things you're saving for
+- [[Tuition]] — track tuition fees and payments
+- [[Loans]] — money borrowed from or lent to friends
 - [[Recurring Transactions]] — automate repeating income and bills
 - [[Categories]] — manage how transactions are labeled
 - [[Accounts]] — manage where your money lives
-- [[Settings and Data]] — theme, exports, backups, and where your data is stored
+- [[Settings and Data]] — sidebar order, currency, exports, backups, and where your data is stored
+
+You can rearrange or hide sidebar sections in Settings, so your sidebar may not be in this order.
 
 ## New here?
 

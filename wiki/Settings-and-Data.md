@@ -1,24 +1,21 @@
 # Settings and Data
 
-The Settings page is where you control the app's appearance, choose which sections appear in the sidebar, and get your data in and out. It's also where the app's privacy promise is spelled out.
+The Settings page is where you arrange the sidebar, choose your currency, and get your data in and out. It's also where the app's privacy promise is spelled out.
 
-## Navigation sections
+## Sidebar menu
 
-Each section of the app can be shown or hidden using the toggles at the top of Settings. Turn off anything you don't use — it disappears from the sidebar immediately.
+Every sidebar section is listed at the top of Settings, in the order it appears in the sidebar.
 
-- **Transactions** — the full transaction log
-- **Budgets** — monthly spending limits
-- **Analytics** — charts and trend views
-- **Goals** — savings targets
-- **Recurring** — repeating bills and income
-- **Categories** — transaction labels
-- **Accounts** — your accounts and their balances
+- **Reorder** a section with the ↑ and ↓ arrows next to it. The sidebar updates immediately. *Reset order* puts everything back the way it shipped.
+- **Hide** a section by switching it off. It disappears from the sidebar but keeps all its data; switch it back on any time.
 
-Dashboard and Settings are always visible and cannot be hidden. If you hide a section while you're on it, the app takes you back to the Dashboard.
+Dashboard can be moved but not hidden, and Settings always stays at the bottom of the sidebar. If you hide a section while you're on it, the app takes you back to the Dashboard.
 
-## Appearance
+## Currency
 
-Switch between **light and dark mode** with one button. The choice applies immediately across the whole app. You can also toggle the theme from the bottom of the sidebar on any page.
+ManMoney uses **one currency** for everything — every account, transaction, budget, goal, and total. Pick it here. Changing it relabels all amounts; it doesn't convert them.
+
+The app works offline with no exchange rates, so a single currency is what keeps totals like your net worth correct: every number being added up is in the same unit.
 
 ## Exporting your data
 

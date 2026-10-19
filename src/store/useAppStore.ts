@@ -1,16 +1,32 @@
 import { create } from 'zustand';
-import type { Account, Category, Transaction, Budget, SavingsGoal, RecurringTransaction, DashboardData, Page } from '../types';
+import type { Account, Category, Transaction, Budget, SavingsGoal, TuitionFee, Loan, RecurringTransaction, DashboardData, Page } from '../types';
 import { api } from '../lib/api';
-import { currentYear, currentMonth } from '../lib/utils';
+import { currentYear, currentMonth, setAppCurrency } from '../lib/utils';
 
-export type HideableSection = 'transactions' | 'budgets' | 'analytics' | 'goals' | 'recurring' | 'categories' | 'accounts';
+export type HideableSection = 'transactions' | 'budgets' | 'analytics' | 'goals' | 'tuition' | 'loans' | 'recurring' | 'categories' | 'accounts';
 
-export const HIDEABLE_SECTIONS: HideableSection[] = ['transactions', 'budgets', 'analytics', 'goals', 'recurring', 'categories', 'accounts'];
+export const HIDEABLE_SECTIONS: HideableSection[] = ['transactions', 'budgets', 'analytics', 'goals', 'tuition', 'loans', 'recurring', 'categories', 'accounts'];
 
 const DEFAULT_VISIBLE: Record<HideableSection, boolean> = {
-  transactions: true, budgets: true, analytics: true, goals: true,
-  recurring: true, categories: true, accounts: true,
+  transactions: true, budgets: true, analytics: true, goals: true, tuition: true,
+  loans: true, recurring: true, categories: true, accounts: true,
 };
+
+// Sidebar order (Settings stays pinned at the bottom).
+export const DEFAULT_NAV_ORDER: Page[] = ['dashboard', 'transactions', 'budgets', 'analytics', 'goals', 'tuition', 'loans', 'recurring', 'categories', 'accounts'];
+
+// Keeps a saved order valid across app updates: drops pages that no longer
+// exist and appends new ones at the end.
+function loadNavOrder(): Page[] {
+  try {
+    const raw = localStorage.getItem('mm_nav_order');
+    if (raw) {
+      const saved = (JSON.parse(raw) as Page[]).filter(p => DEFAULT_NAV_ORDER.includes(p));
+      return [...saved, ...DEFAULT_NAV_ORDER.filter(p => !saved.includes(p))];
+    }
+  } catch {}
+  return [...DEFAULT_NAV_ORDER];
+}
 
 function loadVisibleSections(): Record<HideableSection, boolean> {
   try {
@@ -24,6 +40,15 @@ function saveVisibleSections(v: Record<HideableSection, boolean>) {
   localStorage.setItem('mm_visible_sections', JSON.stringify(v));
 }
 
+function loadCurrency(): string | null {
+  try { return localStorage.getItem('mm_currency'); } catch { return null; }
+}
+
+const savedCurrency = loadCurrency();
+const initialCurrency = savedCurrency ?? 'USD';
+setAppCurrency(initialCurrency);
+let currencyChosen = savedCurrency !== null;
+
 interface AppState {
   // Navigation
   currentPage: Page;
@@ -33,9 +58,14 @@ interface AppState {
   visibleSections: Record<HideableSection, boolean>;
   toggleSection: (section: HideableSection) => void;
 
-  // Theme
-  isDark: boolean;
-  toggleTheme: () => void;
+  // Sidebar order
+  navOrder: Page[];
+  moveNavItem: (page: Page, direction: -1 | 1) => void;
+  resetNavOrder: () => void;
+
+  // The single currency used for every account and amount
+  currency: string;
+  setCurrency: (currency: string) => Promise<void>;
 
   // Data
   accounts: Account[];
@@ -43,6 +73,8 @@ interface AppState {
   transactions: Transaction[];
   budgets: Budget[];
   goals: SavingsGoal[];
+  tuition: TuitionFee[];
+  loans: Loan[];
   recurring: RecurringTransaction[];
   dashboard: DashboardData | null;
 
@@ -62,6 +94,8 @@ interface AppState {
   fetchTransactions: (filters?: Parameters<typeof api.transactions.list>[0]) => Promise<void>;
   fetchBudgets: () => Promise<void>;
   fetchGoals: () => Promise<void>;
+  fetchTuition: () => Promise<void>;
+  fetchLoans: () => Promise<void>;
   fetchRecurring: () => Promise<void>;
   fetchDashboard: () => Promise<void>;
 
@@ -94,14 +128,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  isDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
-  toggleTheme: () => {
-    const isDark = !get().isDark;
-    set({ isDark });
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+  navOrder: loadNavOrder(),
+  moveNavItem: (page, direction) => {
+    const order = [...get().navOrder];
+    const i = order.indexOf(page);
+    const j = i + direction;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    try { localStorage.setItem('mm_nav_order', JSON.stringify(order)); } catch {}
+    set({ navOrder: order });
+  },
+  resetNavOrder: () => {
+    try { localStorage.removeItem('mm_nav_order'); } catch {}
+    set({ navOrder: [...DEFAULT_NAV_ORDER] });
+  },
+
+  currency: initialCurrency,
+  setCurrency: async (currency) => {
+    currencyChosen = true;
+    setAppCurrency(currency);
+    try { localStorage.setItem('mm_currency', currency); } catch {}
+    set({ currency });
+    try {
+      await api.accounts.setCurrency(currency);
+      await get().fetchAccounts();
+    } catch (e) {
+      console.error('setCurrency', e);
     }
   },
 
@@ -110,6 +162,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   transactions: [],
   budgets: [],
   goals: [],
+  tuition: [],
+  loans: [],
   recurring: [],
   dashboard: null,
 
@@ -132,6 +186,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().fetchDashboard(),
       get().fetchBudgets(),
       get().fetchGoals(),
+      get().fetchTuition(),
+      get().fetchLoans(),
       get().fetchRecurring(),
     ]);
     set({ loading: false });
@@ -141,6 +197,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const accounts = await api.accounts.list();
       set({ accounts });
+      // First run after the single-currency change: adopt the currency the
+      // user's accounts already use instead of defaulting to USD.
+      if (!currencyChosen && accounts.length > 0) await get().setCurrency(accounts[0].currency);
     } catch (e) {
       console.error('fetchAccounts', e);
     }
@@ -183,6 +242,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ goals });
     } catch (e) {
       console.error('fetchGoals', e);
+    }
+  },
+
+  fetchTuition: async () => {
+    try {
+      const tuition = await api.tuition.list();
+      set({ tuition });
+    } catch (e) {
+      console.error('fetchTuition', e);
+    }
+  },
+
+  fetchLoans: async () => {
+    try {
+      const loans = await api.loans.list();
+      set({ loans });
+    } catch (e) {
+      console.error('fetchLoans', e);
     }
   },
 

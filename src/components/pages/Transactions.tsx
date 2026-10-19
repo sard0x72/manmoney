@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Trash2, Pencil, X, ArrowLeftRight } from 'lucide-react';
+import { Plus, Search, Trash2, Pencil, X, ReceiptText } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { PageHeader } from '../layout/PageHeader';
@@ -65,10 +66,7 @@ function TransactionForm({ tx, onSave, onCancel }: { tx?: Transaction; onSave: (
       </div>
       <div>
         <label className="label mb-1.5 block">Amount</label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-muted))] text-sm">$</span>
-          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" min="0" step="0.01" className="input pl-7" autoFocus />
-        </div>
+        <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} min="0" step="0.01" autoFocus />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -212,7 +210,7 @@ export function Transactions() {
             </div>
           ) : transactions.length === 0 ? (
             <EmptyState
-              icon={<ArrowLeftRight size={22} />}
+              icon={<ReceiptText size={22} />}
               title="Nothing matches"
               description="Try a different search or clear your filters."
               action={hasFilters ? <button onClick={() => { setSearch(''); setFilterType(''); setFilterAccount(''); setFilterCategory(''); }} className="btn-secondary">Clear filters</button>
@@ -279,11 +277,9 @@ export function Transactions() {
                       <span style={{
                         fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
                         fontSize: 14, fontWeight: 500,
-                        color: t.transaction_type === 'income' ? 'var(--positive)'
-                          : t.transaction_type === 'expense' ? 'var(--negative)'
-                          : 'var(--clay)',
+                        color: t.transaction_type === 'income' ? 'var(--positive)' : 'var(--negative)',
                       }}>
-                        {t.transaction_type === 'income' ? '+' : t.transaction_type === 'expense' ? '−' : '↔'}
+                        {t.transaction_type === 'income' ? '+' : '−'}
                         {formatCurrency(t.amount)}
                       </span>
                     </td>

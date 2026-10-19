@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
   Account, Category, Transaction, Budget, SavingsGoal,
-  RecurringTransaction, DashboardData, SpendingByCategory, DailySpending
+  RecurringTransaction, DashboardData, SpendingByCategory, DailySpending,
+  TuitionFee, TuitionPayment, Loan, LoanRepayment
 } from '../types';
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ export const api = {
         color: data.color,
         icon: data.icon,
       }),
+    setCurrency: (currency: string) => invoke<void>('set_accounts_currency', { currency }),
     delete: (id: string) => invoke<void>('delete_account', { id }),
   },
 
@@ -146,6 +148,69 @@ export const api = {
         notes: data.notes,
       }),
     delete: (id: string) => invoke<void>('delete_savings_goal', { id }),
+  },
+
+  tuition: {
+    list: () => invoke<TuitionFee[]>('get_tuition_fees'),
+    create: (data: Pick<TuitionFee, 'name' | 'total_amount' | 'due_date' | 'notes'>) =>
+      invoke<void>('create_tuition_fee', {
+        name: data.name,
+        totalAmount: data.total_amount,
+        dueDate: data.due_date,
+        notes: data.notes,
+      }),
+    update: (data: Pick<TuitionFee, 'id' | 'name' | 'total_amount' | 'due_date' | 'notes'>) =>
+      invoke<void>('update_tuition_fee', {
+        id: data.id,
+        name: data.name,
+        totalAmount: data.total_amount,
+        dueDate: data.due_date,
+        notes: data.notes,
+      }),
+    delete: (id: string) => invoke<void>('delete_tuition_fee', { id }),
+    payments: (tuitionId: string) => invoke<TuitionPayment[]>('get_tuition_payments', { tuitionId }),
+    pay: (data: { tuition_id: string; account_id: string; amount: number; date: string; notes: string; payment_method: string }) =>
+      invoke<void>('add_tuition_payment', {
+        tuitionId: data.tuition_id,
+        accountId: data.account_id,
+        amount: data.amount,
+        date: data.date,
+        notes: data.notes,
+        paymentMethod: data.payment_method,
+      }),
+  },
+
+  loans: {
+    list: () => invoke<Loan[]>('get_loans'),
+    create: (data: Pick<Loan, 'person' | 'direction' | 'amount' | 'account_id' | 'date' | 'due_date' | 'notes'>) =>
+      invoke<void>('create_loan', {
+        person: data.person,
+        direction: data.direction,
+        amount: data.amount,
+        accountId: data.account_id,
+        date: data.date,
+        dueDate: data.due_date,
+        notes: data.notes,
+      }),
+    update: (data: Pick<Loan, 'id' | 'person' | 'amount' | 'due_date' | 'notes'>) =>
+      invoke<void>('update_loan', {
+        id: data.id,
+        person: data.person,
+        amount: data.amount,
+        dueDate: data.due_date,
+        notes: data.notes,
+      }),
+    delete: (id: string) => invoke<void>('delete_loan', { id }),
+    repayments: (loanId: string) => invoke<LoanRepayment[]>('get_loan_repayments', { loanId }),
+    addRepayment: (data: { loan_id: string; amount: number; account_id: string; date: string; notes: string }) =>
+      invoke<void>('add_loan_repayment', {
+        loanId: data.loan_id,
+        amount: data.amount,
+        accountId: data.account_id,
+        date: data.date,
+        notes: data.notes,
+      }),
+    deleteRepayment: (id: string) => invoke<void>('delete_loan_repayment', { id }),
   },
 
   recurring: {

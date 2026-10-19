@@ -83,6 +83,51 @@ pub struct SavingsGoal {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TuitionFee {
+    pub id: String,
+    pub name: String,
+    pub total_amount: f64,
+    pub paid: f64,
+    pub due_date: Option<String>,
+    pub notes: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TuitionPayment {
+    pub id: String,
+    pub amount: f64,
+    pub date: String,
+    pub notes: String,
+    pub account_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Loan {
+    pub id: String,
+    pub person: String,
+    pub direction: String, // "lent" (I gave money) or "borrowed" (I took money)
+    pub amount: f64,
+    pub returned: f64,
+    pub account_id: String,
+    pub account_name: Option<String>,
+    pub date: String,
+    pub due_date: Option<String>,
+    pub notes: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LoanRepayment {
+    pub id: String,
+    pub loan_id: String,
+    pub amount: f64,
+    pub date: String,
+    pub notes: String,
+    pub account_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RecurringTransaction {
     pub id: String,
     pub account_id: String,
@@ -191,6 +236,34 @@ fn setup_database(conn: &Connection) -> rusqlite::Result<()> {
             notes TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS tuition_fees (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            total_amount REAL NOT NULL,
+            due_date TEXT,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS loans (
+            id TEXT PRIMARY KEY,
+            person TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            amount REAL NOT NULL,
+            account_id TEXT NOT NULL REFERENCES accounts(id),
+            date TEXT NOT NULL,
+            due_date TEXT,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS loan_repayments (
+            id TEXT PRIMARY KEY,
+            loan_id TEXT NOT NULL REFERENCES loans(id),
+            amount REAL NOT NULL,
+            account_id TEXT NOT NULL REFERENCES accounts(id),
+            date TEXT NOT NULL,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS recurring_transactions (
             id TEXT PRIMARY KEY,
             account_id TEXT NOT NULL REFERENCES accounts(id),
@@ -210,6 +283,14 @@ fn setup_database(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_tx_account ON transactions(account_id);
         CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category_id);
     "#)?;
+
+    // Tuition payments are ordinary expense transactions linked to a fee.
+    let has_tuition_col = conn
+        .prepare("SELECT 1 FROM pragma_table_info('transactions') WHERE name='tuition_id'")?
+        .exists([])?;
+    if !has_tuition_col {
+        conn.execute_batch("ALTER TABLE transactions ADD COLUMN tuition_id TEXT REFERENCES tuition_fees(id)")?;
+    }
 
     seed_defaults(conn)?;
     migrate_transfers(conn)?;
@@ -340,6 +421,14 @@ fn update_account(state: State<DbState>, id: String, name: String, account_type:
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     conn.execute("UPDATE accounts SET name=?1,account_type=?2,currency=?3,color=?4,icon=?5 WHERE id=?6",
         params![name, account_type, currency, color, icon, id]).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// The app uses a single currency, so changing it in Settings applies to every account.
+#[tauri::command]
+fn set_accounts_currency(state: State<DbState>, currency: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    conn.execute("UPDATE accounts SET currency=?1", params![currency]).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -627,6 +716,233 @@ fn delete_savings_goal(state: State<DbState>, id: String) -> Result<(), String> 
     Ok(())
 }
 
+// ─── Tuition ──────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn get_tuition_fees(state: State<DbState>) -> Result<Vec<TuitionFee>, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(r#"
+        SELECT f.id,f.name,f.total_amount,
+               COALESCE((SELECT SUM(t.amount) FROM transactions t
+                         WHERE t.tuition_id=f.id AND t.transaction_type='expense'),0.0),
+               f.due_date,f.notes,f.created_at
+        FROM tuition_fees f ORDER BY f.created_at DESC
+    "#).map_err(|e| e.to_string())?;
+    let result = stmt.query_map([], |r| Ok(TuitionFee {
+        id: r.get(0)?, name: r.get(1)?, total_amount: r.get(2)?, paid: r.get(3)?,
+        due_date: r.get(4)?, notes: r.get(5)?, created_at: r.get(6)?,
+    })).map_err(|e| e.to_string())?
+    .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    Ok(result)
+}
+
+#[tauri::command]
+fn create_tuition_fee(state: State<DbState>, name: String, total_amount: f64, due_date: Option<String>, notes: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO tuition_fees(id,name,total_amount,due_date,notes,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
+        params![Uuid::new_v4().to_string(), name, total_amount, due_date, notes, Utc::now().to_rfc3339()],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn update_tuition_fee(state: State<DbState>, id: String, name: String, total_amount: f64, due_date: Option<String>, notes: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE tuition_fees SET name=?1,total_amount=?2,due_date=?3,notes=?4 WHERE id=?5",
+        params![name, total_amount, due_date, notes, id],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Deletes the fee but keeps its payments as ordinary Education expenses,
+/// so account balances and spending history are unaffected.
+#[tauri::command]
+fn delete_tuition_fee(state: State<DbState>, id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    conn.execute("UPDATE transactions SET tuition_id=NULL WHERE tuition_id=?1", params![id]).map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM tuition_fees WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_tuition_payments(state: State<DbState>, tuition_id: String) -> Result<Vec<TuitionPayment>, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(r#"
+        SELECT t.id,t.amount,t.date,t.notes,a.name
+        FROM transactions t LEFT JOIN accounts a ON t.account_id=a.id
+        WHERE t.tuition_id=?1 AND t.transaction_type='expense'
+        ORDER BY t.date DESC,t.created_at DESC
+    "#).map_err(|e| e.to_string())?;
+    let result = stmt.query_map(params![tuition_id], |r| Ok(TuitionPayment {
+        id: r.get(0)?, amount: r.get(1)?, date: r.get(2)?, notes: r.get(3)?, account_name: r.get(4)?,
+    })).map_err(|e| e.to_string())?
+    .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    Ok(result)
+}
+
+/// Records a payment as an Education expense from the chosen account.
+#[tauri::command]
+fn add_tuition_payment(
+    state: State<DbState>,
+    tuition_id: String, account_id: String, amount: f64, date: String, notes: String, payment_method: String,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let fee_name: String = conn.query_row("SELECT name FROM tuition_fees WHERE id=?1",
+        params![tuition_id], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let category_id: String = conn.query_row(
+        "SELECT id FROM categories WHERE category_type='expense' ORDER BY (name='Education') DESC, (name='Other Expense') DESC, name LIMIT 1",
+        [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO transactions(id,account_id,category_id,transaction_type,amount,date,notes,payee,payment_method,tags,is_recurring,tuition_id,created_at,updated_at) VALUES(?1,?2,?3,'expense',?4,?5,?6,?7,?8,'tuition',0,?9,?10,?10)",
+        params![Uuid::new_v4().to_string(), account_id, category_id, amount, date, notes, fee_name, payment_method, tuition_id, now],
+    ).map_err(|e| e.to_string())?;
+    conn.execute("UPDATE accounts SET balance=balance-?1 WHERE id=?2", params![amount, account_id]).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ─── Loans ────────────────────────────────────────────────────────────────────
+//
+// Money lent to or borrowed from friends. Loans move account balances but are
+// deliberately not transactions, so they never count as income or spending.
+
+/// +1 when the loan itself brings money in (borrowed), -1 when it sends money out (lent).
+/// Repayments move money the opposite way.
+fn loan_sign(direction: &str) -> Result<f64, String> {
+    match direction {
+        "borrowed" => Ok(1.0),
+        "lent" => Ok(-1.0),
+        _ => Err(format!("Unknown loan direction: {}", direction)),
+    }
+}
+
+fn adjust_balance(conn: &Connection, account_id: &str, delta: f64) -> Result<(), String> {
+    conn.execute("UPDATE accounts SET balance=balance+?1 WHERE id=?2", params![delta, account_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_loans(state: State<DbState>) -> Result<Vec<Loan>, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(r#"
+        SELECT l.id,l.person,l.direction,l.amount,
+               COALESCE((SELECT SUM(r.amount) FROM loan_repayments r WHERE r.loan_id=l.id),0.0),
+               l.account_id,a.name,l.date,l.due_date,l.notes,l.created_at
+        FROM loans l LEFT JOIN accounts a ON l.account_id=a.id
+        ORDER BY l.date DESC,l.created_at DESC
+    "#).map_err(|e| e.to_string())?;
+    let result = stmt.query_map([], |r| Ok(Loan {
+        id: r.get(0)?, person: r.get(1)?, direction: r.get(2)?, amount: r.get(3)?, returned: r.get(4)?,
+        account_id: r.get(5)?, account_name: r.get(6)?, date: r.get(7)?, due_date: r.get(8)?,
+        notes: r.get(9)?, created_at: r.get(10)?,
+    })).map_err(|e| e.to_string())?
+    .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    Ok(result)
+}
+
+#[tauri::command]
+fn create_loan(
+    state: State<DbState>,
+    person: String, direction: String, amount: f64, account_id: String,
+    date: String, due_date: Option<String>, notes: String,
+) -> Result<(), String> {
+    let sign = loan_sign(&direction)?;
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT INTO loans(id,person,direction,amount,account_id,date,due_date,notes,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+        params![Uuid::new_v4().to_string(), person, direction, amount, account_id, date, due_date, notes, Utc::now().to_rfc3339()],
+    ).map_err(|e| e.to_string())?;
+    adjust_balance(&tx, &account_id, sign * amount)?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
+/// Edits a loan. A changed amount adjusts the original account by the difference;
+/// the account and direction are fixed once created.
+#[tauri::command]
+fn update_loan(state: State<DbState>, id: String, person: String, amount: f64, due_date: Option<String>, notes: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let (direction, old_amount, account_id): (String, f64, String) = conn.query_row(
+        "SELECT direction,amount,account_id FROM loans WHERE id=?1", params![id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
+    let sign = loan_sign(&direction)?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute("UPDATE loans SET person=?1,amount=?2,due_date=?3,notes=?4 WHERE id=?5",
+        params![person, amount, due_date, notes, id]).map_err(|e| e.to_string())?;
+    adjust_balance(&tx, &account_id, sign * (amount - old_amount))?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
+/// Deletes a loan and its returns, undoing every balance change they made.
+#[tauri::command]
+fn delete_loan(state: State<DbState>, id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let (direction, amount, account_id): (String, f64, String) = conn.query_row(
+        "SELECT direction,amount,account_id FROM loans WHERE id=?1", params![id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
+    let sign = loan_sign(&direction)?;
+    let repayments: Vec<(f64, String)> = {
+        let mut stmt = conn.prepare("SELECT amount,account_id FROM loan_repayments WHERE loan_id=?1").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params![id], |r| Ok((r.get(0)?, r.get(1)?))).map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        rows
+    };
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    adjust_balance(&tx, &account_id, -sign * amount)?;
+    for (r_amount, r_account) in repayments {
+        adjust_balance(&tx, &r_account, sign * r_amount)?;
+    }
+    tx.execute("DELETE FROM loan_repayments WHERE loan_id=?1", params![id]).map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM loans WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_loan_repayments(state: State<DbState>, loan_id: String) -> Result<Vec<LoanRepayment>, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(r#"
+        SELECT r.id,r.loan_id,r.amount,r.date,r.notes,a.name
+        FROM loan_repayments r LEFT JOIN accounts a ON r.account_id=a.id
+        WHERE r.loan_id=?1 ORDER BY r.date DESC,r.created_at DESC
+    "#).map_err(|e| e.to_string())?;
+    let result = stmt.query_map(params![loan_id], |r| Ok(LoanRepayment {
+        id: r.get(0)?, loan_id: r.get(1)?, amount: r.get(2)?, date: r.get(3)?, notes: r.get(4)?, account_name: r.get(5)?,
+    })).map_err(|e| e.to_string())?
+    .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    Ok(result)
+}
+
+#[tauri::command]
+fn add_loan_repayment(state: State<DbState>, loan_id: String, amount: f64, account_id: String, date: String, notes: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let direction: String = conn.query_row("SELECT direction FROM loans WHERE id=?1", params![loan_id], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let sign = loan_sign(&direction)?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT INTO loan_repayments(id,loan_id,amount,account_id,date,notes,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+        params![Uuid::new_v4().to_string(), loan_id, amount, account_id, date, notes, Utc::now().to_rfc3339()],
+    ).map_err(|e| e.to_string())?;
+    adjust_balance(&tx, &account_id, -sign * amount)?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_loan_repayment(state: State<DbState>, id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let (amount, account_id, direction): (f64, String, String) = conn.query_row(
+        "SELECT r.amount,r.account_id,l.direction FROM loan_repayments r JOIN loans l ON r.loan_id=l.id WHERE r.id=?1",
+        params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
+    let sign = loan_sign(&direction)?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    adjust_balance(&tx, &account_id, sign * amount)?;
+    tx.execute("DELETE FROM loan_repayments WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -845,11 +1161,15 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_accounts, create_account, update_account, delete_account,
+            get_accounts, create_account, update_account, set_accounts_currency, delete_account,
             get_categories, create_category, update_category, delete_category,
             get_transactions, create_transaction, update_transaction, delete_transaction,
             get_budgets, upsert_budget, delete_budget,
             get_savings_goals, create_savings_goal, update_savings_goal, delete_savings_goal,
+            get_tuition_fees, create_tuition_fee, update_tuition_fee, delete_tuition_fee,
+            get_tuition_payments, add_tuition_payment,
+            get_loans, create_loan, update_loan, delete_loan,
+            get_loan_repayments, add_loan_repayment, delete_loan_repayment,
             get_dashboard_data, get_spending_by_category, get_daily_spending,
             get_recurring_transactions, create_recurring_transaction, delete_recurring_transaction,
             export_transactions_csv, get_db_path,

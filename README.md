@@ -36,6 +36,8 @@ Use `npm run tauri dev` — it runs the frontend and Rust backend together as a 
 - **Budgets** — monthly per-category spending limits with progress tracking
 - **Analytics** — daily cash flow, 12-month trends, and category breakdowns
 - **Savings Goals** — track progress toward what you're saving for
+- **Tuition** — track tuition fees: how much you've paid and how much is left
+- **Loans** — money borrowed from or lent to friends, and what's been paid back
 - **Recurring** — schedule repeating bills and income
 - **Export** — CSV, Excel, or JSON, any time
 

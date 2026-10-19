@@ -10,6 +10,8 @@
 - [[Budgets]]
 - [[Analytics]]
 - [[Savings Goals]]
+- [[Tuition]]
+- [[Loans]]
 - [[Recurring Transactions]]
 - [[Categories]]
 - [[Accounts]]

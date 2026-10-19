@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { PageHeader } from '../layout/PageHeader';
 import type { SavingsGoal } from '../../types';
@@ -43,17 +44,11 @@ function GoalForm({ goal, onSave, onCancel }: { goal?: SavingsGoal; onSave: () =
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label mb-1.5 block">Target Amount</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-muted))] text-sm">$</span>
-            <input type="number" value={target} onChange={e => setTarget(e.target.value)} className="input pl-7" placeholder="0.00" />
-          </div>
+          <MoneyInput value={target} onChange={e => setTarget(e.target.value)} />
         </div>
         <div>
           <label className="label mb-1.5 block">Already Saved</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--text-muted))] text-sm">$</span>
-            <input type="number" value={current} onChange={e => setCurrent(e.target.value)} className="input pl-7" placeholder="0.00" />
-          </div>
+          <MoneyInput value={current} onChange={e => setCurrent(e.target.value)} />
         </div>
       </div>
       <div>

@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useAppStore } from './store/useAppStore';
 import { Sidebar } from './components/layout/Sidebar';
 import { Toast } from './components/ui/Toast';
@@ -9,6 +8,8 @@ import { Transactions } from './components/pages/Transactions';
 import { Budgets } from './components/pages/Budgets';
 import { Analytics } from './components/pages/Analytics';
 import { Goals } from './components/pages/Goals';
+import { Tuition } from './components/pages/Tuition';
+import { Loans } from './components/pages/Loans';
 import { Recurring } from './components/pages/Recurring';
 import { Categories } from './components/pages/Categories';
 import { Accounts } from './components/pages/Accounts';
@@ -20,6 +21,8 @@ const PAGE_MAP = {
   budgets: Budgets,
   analytics: Analytics,
   goals: Goals,
+  tuition: Tuition,
+  loans: Loans,
   recurring: Recurring,
   categories: Categories,
   accounts: Accounts,
@@ -44,16 +47,9 @@ function NotTauriScreen() {
 }
 
 export default function App() {
-  const { currentPage, isDark, fetchAll, loading } = useAppStore();
+  const { currentPage, fetchAll, loading } = useAppStore();
 
   if (!isTauri()) return <NotTauriScreen />;
-
-  useEffect(() => {
-    if (isDark) document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-    // Match the native title bar (Windows) to the app theme.
-    getCurrentWindow().setTheme(isDark ? 'dark' : 'light').catch(() => {});
-  }, [isDark]);
 
   useEffect(() => {
     fetchAll();

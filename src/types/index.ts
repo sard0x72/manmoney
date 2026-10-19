@@ -65,6 +65,47 @@ export interface SavingsGoal {
   created_at: string;
 }
 
+export interface TuitionFee {
+  id: string;
+  name: string;
+  total_amount: number;
+  paid: number;
+  due_date?: string;
+  notes: string;
+  created_at: string;
+}
+
+export interface TuitionPayment {
+  id: string;
+  amount: number;
+  date: string;
+  notes: string;
+  account_name?: string;
+}
+
+export interface Loan {
+  id: string;
+  person: string;
+  direction: 'lent' | 'borrowed';
+  amount: number;
+  returned: number;
+  account_id: string;
+  account_name?: string;
+  date: string;
+  due_date?: string;
+  notes: string;
+  created_at: string;
+}
+
+export interface LoanRepayment {
+  id: string;
+  loan_id: string;
+  amount: number;
+  date: string;
+  notes: string;
+  account_name?: string;
+}
+
 export interface RecurringTransaction {
   id: string;
   account_id: string;
@@ -115,6 +156,8 @@ export type Page =
   | 'budgets'
   | 'analytics'
   | 'goals'
+  | 'tuition'
+  | 'loans'
   | 'recurring'
   | 'categories'
   | 'accounts'
