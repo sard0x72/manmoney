@@ -111,7 +111,7 @@ export function Analytics() {
         </div>
       ) : (
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ maxWidth: 'var(--content-max)', padding: '28px var(--content-h-pad) 64px' }}>
+          <div style={{ maxWidth: 'var(--content-max)', padding: 'calc(28px * var(--v-rhythm)) var(--content-h-pad) calc(64px * var(--v-rhythm))' }}>
             {/* Headline figures */}
             <div className="analytics-stat-grid">
               {[

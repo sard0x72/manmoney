@@ -769,6 +769,41 @@ fn get_db_path(app: tauri::AppHandle) -> Result<String, String> {
     Ok(data_dir.join("manmoney.db").to_string_lossy().to_string())
 }
 
+// ─── Window ───────────────────────────────────────────────────────────────────
+
+/// Shrinks the main window to fit the monitor's work area (the screen minus
+/// the Windows taskbar) and centers it there. The configured 1280×820 size is
+/// in logical pixels, so on common Windows laptops with 125–150% display
+/// scaling it would otherwise open taller than the screen.
+fn fit_window_to_work_area(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    let Some(monitor) = window.current_monitor()? else { return Ok(()) };
+    let area = monitor.work_area();
+    let inner = window.inner_size()?;
+    let outer = window.outer_size()?;
+    // Title bar and borders, in physical pixels.
+    let frame_w = outer.width.saturating_sub(inner.width);
+    let frame_h = outer.height.saturating_sub(inner.height);
+
+    // Leave a small margin around the window so it doesn't look maximized.
+    let max_w = (area.size.width as f64 * 0.96) as u32;
+    let max_h = (area.size.height as f64 * 0.96) as u32;
+    if outer.width <= max_w && outer.height <= max_h {
+        return Ok(());
+    }
+
+    let width = outer.width.min(max_w);
+    let height = outer.height.min(max_h);
+    window.set_size(tauri::PhysicalSize::new(
+        width.saturating_sub(frame_w),
+        height.saturating_sub(frame_h),
+    ))?;
+    window.set_position(tauri::PhysicalPosition::new(
+        area.position.x + (area.size.width.saturating_sub(width) / 2) as i32,
+        area.position.y + (area.size.height.saturating_sub(height) / 2) as i32,
+    ))?;
+    Ok(())
+}
+
 // ─── Entry ────────────────────────────────────────────────────────────────────
 
 pub fn run() {
@@ -781,6 +816,12 @@ pub fn run() {
             let conn = Connection::open(&db_path).expect("open db");
             setup_database(&conn).expect("setup db");
             app.manage(DbState(Mutex::new(conn)));
+
+            // The window starts hidden so it can be resized before it appears.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = fit_window_to_work_area(&window);
+                window.show()?;
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

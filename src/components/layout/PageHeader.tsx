@@ -12,7 +12,7 @@ export function PageHeader({ eyebrow, title, lead, actions }: PageHeaderProps) {
       alignItems: 'flex-end',
       justifyContent: 'space-between',
       gap: 24,
-      padding: '32px var(--content-h-pad) 24px',
+      padding: 'calc(32px * var(--v-rhythm)) var(--content-h-pad) calc(24px * var(--v-rhythm))',
       borderBottom: '1px solid var(--line)',
       flexShrink: 0,
     }}>
