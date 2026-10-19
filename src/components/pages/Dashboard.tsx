@@ -146,7 +146,7 @@ export function Dashboard() {
       {/* Editorial header */}
       <header style={{
         display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-        gap: 24, padding: '36px var(--content-h-pad) 0',
+        gap: 24, padding: 'calc(36px * var(--v-rhythm)) var(--content-h-pad) 0',
       }}>
         <div>
           <div className="mm-eyebrow" style={{ marginBottom: 8 }}>{dayName} · {dateStr}</div>
@@ -166,7 +166,7 @@ export function Dashboard() {
         </button>
       </header>
 
-      <div style={{ maxWidth: 'var(--content-max)', padding: '28px var(--content-h-pad) 64px' }}>
+      <div style={{ maxWidth: 'var(--content-max)', padding: 'calc(28px * var(--v-rhythm)) var(--content-h-pad) calc(64px * var(--v-rhythm))' }}>
         {/* Stat cards */}
         <div className="dash-stat-grid">
           {stats.map(s => (

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useAppStore } from './store/useAppStore';
 import { Sidebar } from './components/layout/Sidebar';
 import { Toast } from './components/ui/Toast';
@@ -50,6 +51,8 @@ export default function App() {
   useEffect(() => {
     if (isDark) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
+    // Match the native title bar (Windows) to the app theme.
+    getCurrentWindow().setTheme(isDark ? 'dark' : 'light').catch(() => {});
   }, [isDark]);
 
   useEffect(() => {

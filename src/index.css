@@ -110,11 +110,12 @@
     --content-max: 1100px;
     --prose-max: 640px;
     --content-h-pad: 44px;
+    --v-rhythm: 1; /* scales vertical page padding on short screens */
 
     /* ---- Type ---- */
     --font-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
-    --font-sans:  'Hanken Grotesk', system-ui, -apple-system, sans-serif;
-    --font-mono:  'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
+    --font-sans:  'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono:  'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
     --type-title: 28px;
   }
 
@@ -213,7 +214,7 @@
     margin: 0;
     background: var(--bg-app);
     color: var(--text-primary);
-    font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+    font-family: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-size: 15px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
@@ -426,6 +427,14 @@
   :root {
     --sidebar-w: 56px;
     --content-h-pad: 20px;
+  }
+}
+
+/* Short windows — e.g. Windows laptops at 125–150% display scaling,
+   where the taskbar and title bar leave ~640–700px of height. */
+@media (max-height: 760px) {
+  :root {
+    --v-rhythm: 0.65;
   }
 }
 
