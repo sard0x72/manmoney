@@ -151,7 +151,6 @@ pub struct DashboardData {
     pub total_balance: f64,
     pub month_income: f64,
     pub month_expenses: f64,
-    pub month_savings: f64,
     pub month_budget_total: f64,
     pub month_budget_spent: f64,
     pub net_worth: f64,
@@ -948,7 +947,7 @@ fn delete_loan_repayment(state: State<DbState>, id: String) -> Result<(), String
 #[tauri::command]
 fn get_dashboard_data(state: State<DbState>) -> Result<DashboardData, String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
-    let now = Utc::now();
+    let now = chrono::Local::now(); // local month, not UTC (UZT is UTC+5)
     let year_n: i32 = now.format("%Y").to_string().parse().unwrap_or(2024);
     let month_n: i32 = now.format("%m").to_string().parse().unwrap_or(1);
     let date_from = format!("{}-{:02}-01", year_n, month_n);
@@ -983,7 +982,6 @@ fn get_dashboard_data(state: State<DbState>) -> Result<DashboardData, String> {
 
     Ok(DashboardData {
         total_balance, month_income, month_expenses,
-        month_savings: month_income - month_expenses,
         month_budget_total, month_budget_spent: month_expenses,
         net_worth: total_balance, accounts,
     })

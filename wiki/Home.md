@@ -15,7 +15,7 @@ This wiki explains what each part of the app does and how to get the most out of
 - Keep track of **loans** with friends — money you borrowed or lent, and how much has come back.
 - Schedule **recurring transactions** for bills, subscriptions, and regular income so you don't have to remember them.
 - Explore your money over time in **Analytics** — daily cash flow, 12-month trends, and category breakdowns.
-- Get a quick read on the month from the **Dashboard**, including a financial health score.
+- Get a quick read on the month from the **Dashboard**.
 - **Export** your data to CSV, Excel, or JSON whenever you want a backup or want to work with it elsewhere.
 
 ## How the app is laid out

@@ -128,7 +128,6 @@ export interface DashboardData {
   total_balance: number;
   month_income: number;
   month_expenses: number;
-  month_savings: number;
   month_budget_total: number;
   month_budget_spent: number;
   net_worth: number;

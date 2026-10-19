@@ -37,6 +37,6 @@ Hover over a budget and click the trash icon. Removing a budget only clears the 
 - Budget the few categories that actually vary and matter (Food, Shopping, Entertainment). You don't need a budget on every category.
 - Set budgets at the **start of the month** and glance at the page mid-month to course-correct while there's still time.
 - If you consistently go over in a category, that's useful information — either the budget is unrealistic or the spending is worth a closer look in [[Analytics]].
-- Budgets feed the **financial health score** on the [[Dashboard]], so keeping them current makes that score more meaningful.
+- Budgets feed the **This month** ring on the [[Dashboard]], so keeping them current makes it a useful daily check.
 
 Related: [[Categories]] · [[Transactions]] · [[Dashboard]] · [[Analytics]]
