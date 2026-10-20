@@ -13,9 +13,15 @@ let appCurrency = 'USD';
 export function setAppCurrency(currency: string) { appCurrency = currency; }
 export function getAppCurrency(): string { return appCurrency; }
 
-// Omitting fraction digits lets Intl use each currency's own (JPY 0, USD 2).
+// Whole amounts drop the ".00" (UZS 1,125,000); amounts with real cents keep
+// them (USD 12.50). The tolerance absorbs float noise from summing many values.
 export function formatCurrency(amount: number, currency = appCurrency): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+  const whole = Math.abs(amount - Math.round(amount)) < 0.005;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    ...(whole ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}),
+  }).format(whole ? Math.round(amount) : amount);
 }
 
 export function currencySymbol(currency = appCurrency): string {
@@ -35,8 +41,11 @@ export function formatDateShort(dateStr: string): string {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
 }
 
+// Local calendar date as YYYY-MM-DD. toISOString() would give the UTC date,
+// which is a day behind for the first hours of the day east of UTC (e.g. UZT+5).
 export function todayISO(): string {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function currentYear(): number {
@@ -56,28 +65,6 @@ export function getMonthDateRange(year: number, month: number): { from: string; 
   const lastDay = new Date(year, month, 0).getDate();
   const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   return { from, to };
-}
-
-export function healthScore(income: number, expenses: number, budgetTotal: number, budgetSpent: number): number {
-  if (income === 0) return 50;
-  const savingsRate = Math.max(0, (income - expenses) / income);
-  const budgetAdherence = budgetTotal > 0 ? Math.max(0, 1 - budgetSpent / budgetTotal) : 1;
-  const score = Math.round((savingsRate * 60 + budgetAdherence * 40) * 100);
-  return Math.min(100, Math.max(0, score));
-}
-
-export function getScoreColor(score: number): string {
-  if (score >= 80) return '#4E7A52';
-  if (score >= 60) return '#A87E2E';
-  if (score >= 40) return '#B5852A';
-  return '#B23E2E';
-}
-
-export function getScoreLabel(score: number): string {
-  if (score >= 80) return 'Excellent';
-  if (score >= 60) return 'Good';
-  if (score >= 40) return 'Fair';
-  return 'Needs Work';
 }
 
 export function getLast12Months(): { year: number; month: number; label: string }[] {

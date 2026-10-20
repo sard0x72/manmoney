@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Download, Database, FileText, FileSpreadsheet, ShieldCheck, ReceiptText, Tag, Wallet, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { useAppStore, DEFAULT_NAV_ORDER } from '../../store/useAppStore';
 import { api } from '../../lib/api';
-import { downloadBlob, CURRENCIES } from '../../lib/utils';
+import { downloadBlob, CURRENCIES, todayISO } from '../../lib/utils';
 import { NAV_ITEMS } from '../../lib/nav';
 import { PageHeader } from '../layout/PageHeader';
 import * as XLSX from 'xlsx';
@@ -81,7 +81,7 @@ export function Settings() {
   const exportCSV = async () => {
     try {
       const csv = await api.export.csv();
-      downloadBlob(csv, `manmoney-export-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
+      downloadBlob(csv, `manmoney-export-${todayISO()}.csv`, 'text/csv');
       showToast('CSV exported');
     } catch (e: any) { showToast(e?.toString() ?? 'Export failed', 'error'); }
   };
@@ -95,14 +95,14 @@ export function Settings() {
       }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Transactions');
-      XLSX.writeFile(wb, `manmoney-export-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      XLSX.writeFile(wb, `manmoney-export-${todayISO()}.xlsx`);
       showToast('Excel file exported');
     } catch { showToast('Export failed', 'error'); }
   };
 
   const exportJSON = () => {
     const data = JSON.stringify({ transactions, categories, accounts }, null, 2);
-    downloadBlob(data, `manmoney-backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+    downloadBlob(data, `manmoney-backup-${todayISO()}.json`, 'application/json');
     showToast('JSON backup exported');
   };
 

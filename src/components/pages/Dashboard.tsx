@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Wallet, PiggyBank, Plus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, PieChart, Plus } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDateShort, getMonthDateRange, currentYear, currentMonth } from '../../lib/utils';
@@ -138,7 +138,6 @@ export function Dashboard() {
     { label: 'Total balance',  value: d?.total_balance ?? 0,   icon: <Wallet size={14} />,     color: 'var(--cat-slate)', sub: 'Across all accounts' },
     { label: 'Income',         value: d?.month_income ?? 0,    icon: <TrendingUp size={14} />,  color: 'var(--cat-sage)',  sub: 'This month' },
     { label: 'Expenses',       value: d?.month_expenses ?? 0,  icon: <TrendingDown size={14} />,color: 'var(--cat-clay)',  sub: 'This month' },
-    { label: 'Saved',          value: d?.month_savings ?? 0,   icon: <PiggyBank size={14} />,  color: 'var(--cat-teal)',  sub: 'This month' },
   ];
 
   return (
@@ -229,13 +228,14 @@ export function Dashboard() {
                   </div>
                 </>
               ) : (
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 500, color: 'var(--ink-strong)' }}>
-                    {formatCurrency(d?.month_savings ?? 0)}
+                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                  <span style={{ color: 'var(--ink-faint)', display: 'flex' }}><PieChart size={26} /></span>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-muted)' }}>
+                    No budget set for this month
                   </div>
-                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-muted)', marginTop: 6 }}>
-                    saved this month
-                  </div>
+                  <button onClick={() => setPage('budgets')} className="btn-secondary" style={{ fontSize: 13, padding: '6px 12px' }}>
+                    Set a budget
+                  </button>
                 </div>
               )}
             </div>

@@ -238,7 +238,7 @@ export function Transactions() {
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}
                   >
                     <td style={{ padding: '13px 12px', fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--ink-muted)', whiteSpace: 'nowrap' }}>
-                      {formatDate(t.date).slice(0, 5)}
+                      {formatDate(t.date)}
                     </td>
                     <td style={{ padding: '13px 12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
