@@ -11,7 +11,7 @@ Go to the [Releases page](https://github.com/sard0x72/manmoney/releases) and exp
 | Your computer | File to download |
 |---------------|-----------------|
 | Windows | `ManMoney_x.x.x_x64-setup.exe` (recommended) or `_x64_en-US.msi` |
-| Linux — Debian, Ubuntu, Mint, and similar | `man-money_x.x.x_amd64.deb` |
+| Linux — Debian, Ubuntu, Mint, and similar | `ManMoney_x.x.x_amd64.deb` |
 | Linux — other distributions | `ManMoney_x.x.x_amd64.AppImage` |
 
 ### Step 2 — Install it
@@ -28,7 +28,7 @@ Go to the [Releases page](https://github.com/sard0x72/manmoney/releases) and exp
 Open a terminal in the folder where you downloaded the file and run:
 
 ```bash
-sudo dpkg -i man-money_*.deb
+sudo dpkg -i ManMoney_*.deb
 ```
 
 ManMoney will appear in your application launcher. You can also double-click the `.deb` file in your file manager if your system has a graphical package installer.
