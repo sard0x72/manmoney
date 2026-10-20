@@ -13,7 +13,7 @@ Go to the **[Releases page](https://github.com/sard0x72/manmoney/releases)** and
 | Platform | File to download |
 |----------|-----------------|
 | Windows | `ManMoney_x.x.x_x64-setup.exe` or `_x64_en-US.msi` |
-| Linux (Debian/Ubuntu) | `man-money_x.x.x_amd64.deb` |
+| Linux (Debian/Ubuntu) | `ManMoney_x.x.x_amd64.deb` |
 | Linux (other) | `ManMoney_x.x.x_amd64.AppImage` |
 
 Full installation instructions — including how to get past the security warning on Windows — are in the **[Getting Started](https://github.com/sard0x72/manmoney/wiki/Getting-Started)** wiki page.
