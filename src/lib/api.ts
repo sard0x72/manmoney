@@ -211,6 +211,8 @@ export const api = {
         notes: data.notes,
       }),
     deleteRepayment: (id: string) => invoke<void>('delete_loan_repayment', { id }),
+    /** Cancels a friend's loans against each other; resolves to the amount cancelled. */
+    offset: (loanIds: string[], date: string) => invoke<number>('offset_loans', { loanIds, date }),
   },
 
   recurring: {
