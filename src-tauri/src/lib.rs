@@ -125,6 +125,7 @@ pub struct LoanRepayment {
     pub date: String,
     pub notes: String,
     pub account_name: Option<String>,
+    pub offset_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -289,6 +290,14 @@ fn setup_database(conn: &Connection) -> rusqlite::Result<()> {
         .exists([])?;
     if !has_tuition_col {
         conn.execute_batch("ALTER TABLE transactions ADD COLUMN tuition_id TEXT REFERENCES tuition_fees(id)")?;
+    }
+
+    // Repayments that share an offset_id cancel loans against each other: no money moves.
+    let has_offset_col = conn
+        .prepare("SELECT 1 FROM pragma_table_info('loan_repayments') WHERE name='offset_id'")?
+        .exists([])?;
+    if !has_offset_col {
+        conn.execute_batch("ALTER TABLE loan_repayments ADD COLUMN offset_id TEXT")?;
     }
 
     seed_defaults(conn)?;
@@ -876,6 +885,7 @@ fn update_loan(state: State<DbState>, id: String, person: String, amount: f64, d
 }
 
 /// Deletes a loan and its returns, undoing every balance change they made.
+/// Any cancel-out it was part of is undone on the other loans too.
 #[tauri::command]
 fn delete_loan(state: State<DbState>, id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
@@ -883,16 +893,21 @@ fn delete_loan(state: State<DbState>, id: String) -> Result<(), String> {
         "SELECT direction,amount,account_id FROM loans WHERE id=?1", params![id],
         |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
     let sign = loan_sign(&direction)?;
-    let repayments: Vec<(f64, String)> = {
-        let mut stmt = conn.prepare("SELECT amount,account_id FROM loan_repayments WHERE loan_id=?1").map_err(|e| e.to_string())?;
-        let rows = stmt.query_map(params![id], |r| Ok((r.get(0)?, r.get(1)?))).map_err(|e| e.to_string())?
+    let repayments: Vec<(f64, String, Option<String>)> = {
+        let mut stmt = conn.prepare("SELECT amount,account_id,offset_id FROM loan_repayments WHERE loan_id=?1").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
         rows
     };
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     adjust_balance(&tx, &account_id, -sign * amount)?;
-    for (r_amount, r_account) in repayments {
-        adjust_balance(&tx, &r_account, sign * r_amount)?;
+    for (r_amount, r_account, offset_id) in repayments {
+        match offset_id {
+            Some(offset_id) => {
+                tx.execute("DELETE FROM loan_repayments WHERE offset_id=?1", params![offset_id]).map_err(|e| e.to_string())?;
+            }
+            None => adjust_balance(&tx, &r_account, sign * r_amount)?,
+        }
     }
     tx.execute("DELETE FROM loan_repayments WHERE loan_id=?1", params![id]).map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM loans WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
@@ -903,12 +918,13 @@ fn delete_loan(state: State<DbState>, id: String) -> Result<(), String> {
 fn get_loan_repayments(state: State<DbState>, loan_id: String) -> Result<Vec<LoanRepayment>, String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn.prepare(r#"
-        SELECT r.id,r.loan_id,r.amount,r.date,r.notes,a.name
+        SELECT r.id,r.loan_id,r.amount,r.date,r.notes,a.name,r.offset_id
         FROM loan_repayments r LEFT JOIN accounts a ON r.account_id=a.id
         WHERE r.loan_id=?1 ORDER BY r.date DESC,r.created_at DESC
     "#).map_err(|e| e.to_string())?;
     let result = stmt.query_map(params![loan_id], |r| Ok(LoanRepayment {
         id: r.get(0)?, loan_id: r.get(1)?, amount: r.get(2)?, date: r.get(3)?, notes: r.get(4)?, account_name: r.get(5)?,
+        offset_id: r.get(6)?,
     })).map_err(|e| e.to_string())?
     .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
     Ok(result)
@@ -929,17 +945,78 @@ fn add_loan_repayment(state: State<DbState>, loan_id: String, amount: f64, accou
     tx.commit().map_err(|e| e.to_string())
 }
 
+/// Deletes a return. A cancel-out is removed as a whole, on both sides, since no money moved.
 #[tauri::command]
 fn delete_loan_repayment(state: State<DbState>, id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
-    let (amount, account_id, direction): (f64, String, String) = conn.query_row(
-        "SELECT r.amount,r.account_id,l.direction FROM loan_repayments r JOIN loans l ON r.loan_id=l.id WHERE r.id=?1",
-        params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
+    let (amount, account_id, direction, offset_id): (f64, String, String, Option<String>) = conn.query_row(
+        "SELECT r.amount,r.account_id,l.direction,r.offset_id FROM loan_repayments r JOIN loans l ON r.loan_id=l.id WHERE r.id=?1",
+        params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))).map_err(|e| e.to_string())?;
     let sign = loan_sign(&direction)?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    adjust_balance(&tx, &account_id, sign * amount)?;
-    tx.execute("DELETE FROM loan_repayments WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
+    match offset_id {
+        Some(offset_id) => {
+            tx.execute("DELETE FROM loan_repayments WHERE offset_id=?1", params![offset_id]).map_err(|e| e.to_string())?;
+        }
+        None => {
+            adjust_balance(&tx, &account_id, sign * amount)?;
+            tx.execute("DELETE FROM loan_repayments WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
+        }
+    }
     tx.commit().map_err(|e| e.to_string())
+}
+
+/// Cancels what you owe a friend against what they owe you. The smaller side is
+/// closed in full and the larger side reduced by the same amount, oldest loans
+/// first. Account balances don't change: no money actually moves. Returns the
+/// amount cancelled.
+#[tauri::command]
+fn offset_loans(state: State<DbState>, loan_ids: Vec<String>, date: String) -> Result<f64, String> {
+    const EPS: f64 = 0.000001;
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let person_key = |p: &str| p.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
+
+    struct Open { id: String, direction: String, open: f64, account_id: String, person: String, order: String }
+    let mut loans: Vec<Open> = Vec::new();
+    for id in &loan_ids {
+        let l = conn.query_row(
+            "SELECT l.direction,l.amount-COALESCE((SELECT SUM(r.amount) FROM loan_repayments r WHERE r.loan_id=l.id),0.0),
+                    l.account_id,l.person,l.date||l.created_at
+             FROM loans l WHERE l.id=?1",
+            params![id], |r| Ok(Open { id: id.clone(), direction: r.get(0)?, open: r.get(1)?, account_id: r.get(2)?, person: r.get(3)?, order: r.get(4)? }),
+        ).map_err(|e| e.to_string())?;
+        loan_sign(&l.direction)?;
+        loans.push(l);
+    }
+    loans.sort_by(|a, b| a.order.cmp(&b.order));
+    let people: std::collections::HashSet<String> = loans.iter().map(|l| person_key(&l.person)).collect();
+    if people.len() != 1 {
+        return Err("Loans to cancel out must all be with the same friend".into());
+    }
+
+    let open_on = |dir: &str| loans.iter().filter(|l| l.direction == dir && l.open > EPS).map(|l| l.open).sum::<f64>();
+    let amount = open_on("lent").min(open_on("borrowed"));
+    if amount <= EPS {
+        return Err("Nothing to cancel out: money needs to be open both ways".into());
+    }
+
+    let offset_id = Uuid::new_v4().to_string();
+    let now = Utc::now().to_rfc3339();
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for dir in ["lent", "borrowed"] {
+        let mut left = amount;
+        for l in loans.iter().filter(|l| l.direction == dir && l.open > EPS) {
+            if left <= EPS { break; }
+            let take = l.open.min(left);
+            tx.execute(
+                "INSERT INTO loan_repayments(id,loan_id,amount,account_id,date,notes,created_at,offset_id) VALUES(?1,?2,?3,?4,?5,'',?6,?7)",
+                params![Uuid::new_v4().to_string(), l.id, take, l.account_id, date, now, offset_id],
+            ).map_err(|e| e.to_string())?;
+            left -= take;
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(amount)
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
@@ -1167,7 +1244,7 @@ pub fn run() {
             get_tuition_fees, create_tuition_fee, update_tuition_fee, delete_tuition_fee,
             get_tuition_payments, add_tuition_payment,
             get_loans, create_loan, update_loan, delete_loan,
-            get_loan_repayments, add_loan_repayment, delete_loan_repayment,
+            get_loan_repayments, add_loan_repayment, delete_loan_repayment, offset_loans,
             get_dashboard_data, get_spending_by_category, get_daily_spending,
             get_recurring_transactions, create_recurring_transaction, delete_recurring_transaction,
             export_transactions_csv, get_db_path,

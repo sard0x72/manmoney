@@ -104,6 +104,8 @@ export interface LoanRepayment {
   date: string;
   notes: string;
   account_name?: string;
+  /** Set when this return came from cancelling loans out; shared by every row of that cancel-out. */
+  offset_id?: string;
 }
 
 export interface RecurringTransaction {
