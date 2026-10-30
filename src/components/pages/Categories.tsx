@@ -3,6 +3,8 @@ import { Plus, Pencil, Trash2, Tag } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { Modal } from '../ui/Modal';
+import { FormSheet, useDirty } from '../ui/FormSheet';
+import { Segmented } from '../ui/Segmented';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { PageHeader } from '../layout/PageHeader';
@@ -11,26 +13,24 @@ import type { Category } from '../../types';
 const COLORS = ['#BD5C42','#4E7A52','#B23E2E','#B5852A','#8A5A78','#3F7E7A','#A87E2E','#B05772','#6E7A3F','#5B6675','#C2613F','#4A9490'];
 const ICONS = ['tag','briefcase','laptop','store','trending-up','gift','plus-circle','utensils','car','shopping-bag','tv','home','zap','heart','graduation-cap','plane','refresh-cw','shield','minus-circle','wallet'];
 
-function CategoryForm({ cat, type, onSave, onCancel }: { cat?: Category; type?: 'income' | 'expense'; onSave: () => void; onCancel: () => void }) {
+function CategoryForm({ cat, type, onSaved, onClose }: { cat?: Category; type?: 'income' | 'expense'; onSaved: () => void; onClose: () => void }) {
   const { showToast } = useAppStore();
   const [name, setName] = useState(cat?.name ?? '');
-  const [catType, setCatType] = useState<'income' | 'expense'>(cat?.category_type as any ?? type ?? 'expense');
+  const [catType, setCatType] = useState<'income' | 'expense'>(cat?.category_type ?? type ?? 'expense');
   const [color, setColor] = useState(cat?.color ?? COLORS[0]);
   const [icon, setIcon] = useState(cat?.icon ?? 'tag');
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ name, catType, color, icon });
 
   const handleSave = async () => {
-    if (!name.trim()) return showToast('Enter a category name', 'error');
+    if (!name.trim()) return showToast('Enter a name', 'error');
     setSaving(true);
     try {
-      if (cat) {
-        await api.categories.update({ id: cat.id, name: name.trim(), color, icon });
-        showToast('Category updated');
-      } else {
-        await api.categories.create({ name: name.trim(), category_type: catType, color, icon });
-        showToast('Category created');
-      }
-      onSave();
+      if (cat) await api.categories.update({ id: cat.id, name: name.trim(), color, icon });
+      else await api.categories.create({ name: name.trim(), category_type: catType, color, icon });
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) {
       showToast(e?.toString() ?? 'Error', 'error');
     } finally {
@@ -39,29 +39,23 @@ function CategoryForm({ cat, type, onSave, onCancel }: { cat?: Category; type?: 
   };
 
   return (
-    <div className="space-y-4">
-      {!cat && (
-        <div>
-          <p className="label mb-2">Type</p>
-          <div className="flex gap-1 p-1 bg-[hsl(var(--bg))] rounded-xl">
-            {(['expense', 'income'] as const).map(t => (
-              <button key={t} onClick={() => setCatType(t)}
-                className={`flex-1 py-1.5 rounded-lg text-sm font-medium capitalize transition-all ${catType === t ? 'bg-[var(--surface)] shadow-card text-[hsl(var(--text))]' : 'text-[hsl(var(--text-muted))]'}`}>
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
+    <FormSheet title={cat ? 'Edit category' : 'Add category'} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
+      {cat ? (
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
+          {cat.category_type === 'income' ? 'Income' : 'Expense'} category
+        </p>
+      ) : (
+        <Segmented value={catType} onChange={setCatType} label="Type" options={[['expense', 'Expense'], ['income', 'Income']]} />
       )}
       <div>
         <label className="label mb-1.5 block">Name</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="Category name…" autoFocus />
+        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="Name" autoFocus />
       </div>
       <div>
         <label className="label mb-2 block">Color</label>
         <div className="flex gap-2 flex-wrap">
           {COLORS.map(c => (
-            <button key={c} onClick={() => setColor(c)}
+            <button key={c} type="button" onClick={() => setColor(c)} aria-label={`Colour ${c}`} aria-pressed={color === c}
               className={`w-7 h-7 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-[hsl(var(--text))] scale-110' : 'hover:scale-105'}`}
               style={{ backgroundColor: c }} />
           ))}
@@ -71,7 +65,7 @@ function CategoryForm({ cat, type, onSave, onCancel }: { cat?: Category; type?: 
         <label className="label mb-2 block">Icon</label>
         <div className="flex gap-2 flex-wrap">
           {ICONS.map(i => (
-            <button key={i} onClick={() => setIcon(i)}
+            <button key={i} type="button" onClick={() => setIcon(i)} aria-label={`Icon ${i}`} aria-pressed={icon === i}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${icon === i ? 'ring-2 text-white' : 'bg-[hsl(var(--bg))] text-[hsl(var(--text-muted))] hover:bg-[hsl(var(--border))]'}`}
               style={icon === i ? { backgroundColor: color } : undefined}>
               <CategoryIcon icon={i} size={14} />
@@ -79,22 +73,7 @@ function CategoryForm({ cat, type, onSave, onCancel }: { cat?: Category; type?: 
           ))}
         </div>
       </div>
-      <div>
-        <label className="label mb-2 block">Preview</label>
-        <div className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${color}20`, color }}>
-            <CategoryIcon icon={icon} size={15} />
-          </span>
-          <span className="text-sm font-medium text-[hsl(var(--text))]">{name || 'Category Name'}</span>
-        </div>
-      </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : cat ? 'Update' : 'Create Category'}
-        </button>
-      </div>
-    </div>
+    </FormSheet>
   );
 }
 
@@ -225,19 +204,20 @@ export function Categories() {
         )}
       </div>
 
-      <Modal open={showForm} onClose={() => { setShowForm(false); setEditCat(undefined); }} title={editCat ? 'Edit Category' : 'New Category'} size="sm">
+      {showForm && (
         <CategoryForm
+          key={editCat?.id ?? 'new'}
           cat={editCat}
           type={activeType}
-          onSave={() => { setShowForm(false); setEditCat(undefined); fetchCategories(); }}
-          onCancel={() => { setShowForm(false); setEditCat(undefined); }}
+          onSaved={fetchCategories}
+          onClose={() => { setShowForm(false); setEditCat(undefined); }}
         />
-      </Modal>
+      )}
 
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Category" size="sm"
         footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
       >
-        <p className="text-sm text-[hsl(var(--text-muted))]">Delete this category? You cannot delete categories that have transactions.</p>
+        <p className="text-sm text-[hsl(var(--text-muted))]">Delete this category? Categories that are in use can't be deleted.</p>
       </Modal>
     </div>
   );

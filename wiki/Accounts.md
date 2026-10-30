@@ -28,12 +28,13 @@ Editing or deleting a transaction reverses its old effect and applies the new on
 
 ## Viewing accounts
 
-The Accounts page groups your accounts by type and shows a subtotal for each group, plus your total net worth at the top. Hover over a card to reveal the edit and delete buttons.
+The Accounts page lists your accounts with their balances, with your net worth at the top. Click an account to edit it. The **⋯** menu on each row has the other actions.
 
-## Editing and deleting
+## Editing, moving and deleting
 
-- **Edit** lets you change the name, type, and color. The balance stays read-only.
-- **Delete** removes the account. Transactions that referenced it are left in place, but their balance is no longer tracked against that account. Delete with care — it's cleaner to keep an account and simply stop using it than to delete one with lots of history.
+- **Edit** changes the name, type and color. The balance changes only through transactions.
+- **Move everything to…** moves every transaction, loan, payback and recurring entry from this account into another one, adds its balance to that account, and then deletes it. Use it to merge two accounts, or to retire one you no longer use. Nothing is counted as income or spending.
+- **Delete** is only available for an account nothing uses yet. If the account has entries, the menu says how many. Move them first with **Move everything to…**.
 
 ## Tips
 

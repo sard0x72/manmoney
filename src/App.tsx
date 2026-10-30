@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
+import { Monitor } from 'lucide-react';
 import { useAppStore } from './store/useAppStore';
 import { Sidebar } from './components/layout/Sidebar';
 import { Toast } from './components/ui/Toast';
+import { QuickAdd } from './components/forms/QuickAdd';
 import { Dashboard } from './components/pages/Dashboard';
 import { Transactions } from './components/pages/Transactions';
 import { Budgets } from './components/pages/Budgets';
@@ -32,9 +34,14 @@ const PAGE_MAP = {
 function NotTauriScreen() {
   return (
     <div className="flex h-screen items-center justify-center" style={{ background: 'var(--paper)' }}>
-      <div className="text-center max-w-sm px-6">
-        <div className="text-5xl mb-4">🖥️</div>
-        <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Desktop App Required</h1>
+      <div className="text-center max-w-sm px-6 flex flex-col items-center">
+        <div style={{
+          width: 56, height: 56, borderRadius: 16, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--paper-sunk)', color: 'var(--ink-muted)',
+        }}>
+          <Monitor size={24} />
+        </div>
+        <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Desktop app required</h1>
         <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
           ManMoney must run as a desktop application. Open a terminal in the project folder and run:
         </p>
@@ -47,9 +54,13 @@ function NotTauriScreen() {
 }
 
 export default function App() {
-  const { currentPage, fetchAll, loading } = useAppStore();
-
+  // Checked before any hook runs: hooks can't follow an early return in the same component.
   if (!isTauri()) return <NotTauriScreen />;
+  return <AppShell />;
+}
+
+function AppShell() {
+  const { currentPage, fetchAll, loading } = useAppStore();
 
   useEffect(() => {
     fetchAll();
@@ -72,6 +83,7 @@ export default function App() {
           <PageComponent />
         )}
       </main>
+      <QuickAdd />
       <Toast />
     </div>
   );

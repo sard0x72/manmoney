@@ -1,9 +1,11 @@
 use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::sync::Mutex;
 use tauri::{Manager, State};
 use uuid::Uuid;
-use chrono::Utc;
+use chrono::{Days, Months, NaiveDate, Utc};
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -179,6 +181,25 @@ pub struct DailySpending {
     pub expenses: f64,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Stats {
+    pub transactions: i64,
+    pub accounts: i64,
+    pub categories: i64,
+    pub loans: i64,
+}
+
+/// What still points at an account; an account in use can't be deleted, only merged.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AccountUsage {
+    pub account_id: String,
+    pub transactions: i64,
+    pub loans: i64,
+    pub recurring: i64,
+    pub adjustments: i64,
+    pub entries: i64,
+}
+
 // ─── Database Setup ───────────────────────────────────────────────────────────
 
 fn setup_database(conn: &Connection) -> rusqlite::Result<()> {
@@ -282,6 +303,14 @@ fn setup_database(conn: &Connection) -> rusqlite::Result<()> {
             next_date TEXT NOT NULL,
             end_date TEXT,
             is_active INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE IF NOT EXISTS balance_adjustments (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL REFERENCES accounts(id),
+            amount REAL NOT NULL,
+            date TEXT NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
         CREATE INDEX IF NOT EXISTS idx_tx_account ON transactions(account_id);
@@ -452,11 +481,83 @@ fn set_accounts_currency(state: State<DbState>, currency: String) -> Result<(), 
     Ok(())
 }
 
+/// "12 transactions and 1 budget": the non-zero counts, pluralised.
+fn count_phrase(items: &[(i64, &str)]) -> String {
+    let parts: Vec<String> = items.iter().filter(|(n, _)| *n > 0)
+        .map(|(n, noun)| format!("{} {}{}", n, noun, if *n == 1 { "" } else { "s" }))
+        .collect();
+    match parts.len() {
+        0 => String::new(),
+        1 => parts[0].clone(),
+        n => format!("{} and {}", parts[..n - 1].join(", "), parts[n - 1]),
+    }
+}
+
+const ACCOUNT_USAGE_SQL: &str = r#"
+    SELECT a.id,
+           (SELECT COUNT(*) FROM transactions t WHERE t.account_id=a.id OR t.transfer_account_id=a.id),
+           (SELECT COUNT(*) FROM loans l WHERE l.account_id=a.id)
+             + (SELECT COUNT(*) FROM loan_repayments r WHERE r.account_id=a.id),
+           (SELECT COUNT(*) FROM recurring_transactions r WHERE r.account_id=a.id),
+           (SELECT COUNT(*) FROM balance_adjustments b WHERE b.account_id=a.id)
+    FROM accounts a
+"#;
+
+fn account_usage_row(r: &rusqlite::Row) -> rusqlite::Result<AccountUsage> {
+    let (transactions, loans, recurring, adjustments): (i64, i64, i64, i64) = (r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?);
+    Ok(AccountUsage {
+        account_id: r.get(0)?, transactions, loans, recurring, adjustments,
+        entries: transactions + loans + recurring + adjustments,
+    })
+}
+
+#[tauri::command]
+fn get_account_usage(state: State<DbState>) -> Result<Vec<AccountUsage>, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(ACCOUNT_USAGE_SQL).map_err(|e| e.to_string())?;
+    let result = stmt.query_map([], account_usage_row).map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    Ok(result)
+}
+
+/// Only an unused account can be deleted. Anything still pointing at it would
+/// fail the foreign key, so the caller is told to move it first.
 #[tauri::command]
 fn delete_account(state: State<DbState>, id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let usage = conn.query_row(&format!("{} WHERE a.id=?1", ACCOUNT_USAGE_SQL), params![id], account_usage_row)
+        .map_err(|e| e.to_string())?;
+    if usage.entries > 0 {
+        return Err(format!("Has {} entries. Move them to another account first.", usage.entries));
+    }
     conn.execute("DELETE FROM accounts WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Moves everything from one account to another, adds its balance to the target,
+/// then deletes it. Nothing is counted as income or spending.
+#[tauri::command]
+fn merge_account(state: State<DbState>, from_id: String, to_id: String) -> Result<(), String> {
+    if from_id == to_id { return Err("Pick a different account".into()); }
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let balance: f64 = conn.query_row("SELECT balance FROM accounts WHERE id=?1", params![from_id], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    conn.query_row("SELECT 1 FROM accounts WHERE id=?1", params![to_id], |r| r.get::<_, i64>(0))
+        .map_err(|_| "That account no longer exists".to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for sql in [
+        "UPDATE transactions SET account_id=?1 WHERE account_id=?2",
+        "UPDATE transactions SET transfer_account_id=?1 WHERE transfer_account_id=?2",
+        "UPDATE loans SET account_id=?1 WHERE account_id=?2",
+        "UPDATE loan_repayments SET account_id=?1 WHERE account_id=?2",
+        "UPDATE recurring_transactions SET account_id=?1 WHERE account_id=?2",
+        "UPDATE balance_adjustments SET account_id=?1 WHERE account_id=?2",
+    ] {
+        tx.execute(sql, params![to_id, from_id]).map_err(|e| e.to_string())?;
+    }
+    adjust_balance(&tx, &to_id, balance)?;
+    tx.execute("DELETE FROM accounts WHERE id=?1", params![from_id]).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())
 }
 
 // ─── Categories ───────────────────────────────────────────────────────────────
@@ -492,13 +593,26 @@ fn update_category(state: State<DbState>, id: String, name: String, color: Strin
     Ok(())
 }
 
+/// Refuses with a readable reason instead of a raw foreign key error.
 #[tauri::command]
 fn delete_category(state: State<DbState>, id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM transactions WHERE category_id=?1",
-        params![id], |r| r.get(0)).map_err(|e| e.to_string())?;
-    if count > 0 { return Err("Cannot delete category that has transactions".to_string()); }
-    conn.execute("DELETE FROM categories WHERE id=?1 AND is_default=0", params![id]).map_err(|e| e.to_string())?;
+    let is_default: bool = conn.query_row("SELECT is_default FROM categories WHERE id=?1",
+        params![id], |r| Ok(r.get::<_, i32>(0)? != 0)).map_err(|e| e.to_string())?;
+    if is_default { return Err("Built-in categories can't be deleted".into()); }
+    let count = |table: &str| -> Result<i64, String> {
+        conn.query_row(&format!("SELECT COUNT(*) FROM {} WHERE category_id=?1", table), params![id], |r| r.get(0))
+            .map_err(|e| e.to_string())
+    };
+    let used = count_phrase(&[
+        (count("transactions")?, "transaction"),
+        (count("budgets")?, "budget"),
+        (count("recurring_transactions")?, "recurring item"),
+    ]);
+    if !used.is_empty() {
+        return Err(format!("Used by {}. Move them to another category first.", used));
+    }
+    conn.execute("DELETE FROM categories WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1226,6 +1340,141 @@ fn create_recurring_transaction(
     Ok(())
 }
 
+fn parse_date(s: &str) -> Result<NaiveDate, String> {
+    NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| format!("Invalid date: {}", s))
+}
+
+fn iso(d: NaiveDate) -> String { d.format("%Y-%m-%d").to_string() }
+
+/// Occurrence `k` of a schedule, always counted from its start so month ends
+/// don't drift: Jan 31, Feb 28, then Mar 31 again.
+fn occurrence(start: NaiveDate, frequency: &str, k: u32) -> Result<NaiveDate, String> {
+    let d = match frequency {
+        "daily" => start.checked_add_days(Days::new(k as u64)),
+        "weekly" => start.checked_add_days(Days::new(7 * k as u64)),
+        "monthly" => start.checked_add_months(Months::new(k)),
+        "yearly" => start.checked_add_months(Months::new(12 * k)),
+        _ => return Err(format!("Unknown frequency: {}", frequency)),
+    };
+    d.ok_or_else(|| "Date out of range".to_string())
+}
+
+fn posted_on(conn: &Connection, recurring_id: &str, date: &str) -> Result<bool, String> {
+    conn.prepare("SELECT 1 FROM transactions WHERE recurring_id=?1 AND date=?2")
+        .and_then(|mut s| s.exists(params![recurring_id, date]))
+        .map_err(|e| e.to_string())
+}
+
+/// The first occurrence on or after `from` that has no transaction yet.
+fn next_unposted(conn: &Connection, id: &str, start: &str, frequency: &str, from: NaiveDate) -> Result<String, String> {
+    let start = parse_date(start)?;
+    let mut k = 0;
+    loop {
+        let d = occurrence(start, frequency, k)?;
+        if d >= from && !posted_on(conn, id, &iso(d))? { return Ok(iso(d)); }
+        k += 1;
+    }
+}
+
+/// Adds every transaction active recurring items owe up to `today`, then moves
+/// each item's next date past it. Running it again adds nothing: a date that
+/// already has its transaction is skipped. Returns how many were added.
+#[tauri::command]
+fn process_recurring(state: State<DbState>, today: String) -> Result<i64, String> {
+    struct Due {
+        id: String, account_id: String, category_id: String, kind: String, amount: f64,
+        payee: String, notes: String, method: String, frequency: String,
+        start: String, next: String, end: Option<String>,
+    }
+    let today = parse_date(&today)?;
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let due: Vec<Due> = {
+        let mut stmt = conn.prepare(
+            "SELECT id,account_id,category_id,transaction_type,amount,payee,notes,payment_method,frequency,start_date,next_date,end_date
+             FROM recurring_transactions WHERE is_active=1 AND next_date<=?1"
+        ).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params![iso(today)], |r| Ok(Due {
+            id: r.get(0)?, account_id: r.get(1)?, category_id: r.get(2)?, kind: r.get(3)?, amount: r.get(4)?,
+            payee: r.get(5)?, notes: r.get(6)?, method: r.get(7)?, frequency: r.get(8)?,
+            start: r.get(9)?, next: r.get(10)?, end: r.get(11)?,
+        })).map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        rows
+    };
+
+    let now = Utc::now().to_rfc3339();
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let mut created = 0;
+    for r in due {
+        let start = parse_date(&r.start)?;
+        let next = parse_date(&r.next)?;
+        let end = match r.end.as_deref() { Some(e) if !e.is_empty() => Some(parse_date(e)?), _ => None };
+        let delta = match r.kind.as_str() { "income" => r.amount, "expense" => -r.amount, _ => 0.0 };
+
+        let mut k = 0;
+        let mut occ = occurrence(start, &r.frequency, k)?;
+        while occ < next { k += 1; occ = occurrence(start, &r.frequency, k)?; }
+
+        while occ <= today && end.map_or(true, |e| occ <= e) {
+            let date = iso(occ);
+            if !posted_on(&tx, &r.id, &date)? {
+                tx.execute(
+                    "INSERT INTO transactions(id,account_id,category_id,transaction_type,amount,date,notes,payee,payment_method,tags,is_recurring,recurring_id,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,'',1,?10,?11,?11)",
+                    params![Uuid::new_v4().to_string(), r.account_id, r.category_id, r.kind, r.amount, date, r.notes, r.payee, r.method, r.id, now],
+                ).map_err(|e| e.to_string())?;
+                adjust_balance(&tx, &r.account_id, delta)?;
+                created += 1;
+            }
+            k += 1;
+            occ = occurrence(start, &r.frequency, k)?;
+        }
+        tx.execute("UPDATE recurring_transactions SET next_date=?1 WHERE id=?2", params![iso(occ), r.id])
+            .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(created)
+}
+
+/// Edits a recurring item. A new start date or frequency moves the next date to
+/// the first occurrence from today on that hasn't been added yet.
+#[tauri::command]
+fn update_recurring_transaction(
+    state: State<DbState>,
+    id: String, account_id: String, category_id: String, transaction_type: String, amount: f64,
+    payee: String, notes: String, payment_method: String, frequency: String, start_date: String, end_date: Option<String>,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let (old_start, old_frequency, old_next): (String, String, String) = conn.query_row(
+        "SELECT start_date,frequency,next_date FROM recurring_transactions WHERE id=?1", params![id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
+    let next_date = if old_start != start_date || old_frequency != frequency {
+        next_unposted(&conn, &id, &start_date, &frequency, chrono::Local::now().date_naive())?
+    } else { old_next };
+    conn.execute(
+        "UPDATE recurring_transactions SET account_id=?1,category_id=?2,transaction_type=?3,amount=?4,payee=?5,notes=?6,payment_method=?7,frequency=?8,start_date=?9,next_date=?10,end_date=?11 WHERE id=?12",
+        params![account_id, category_id, transaction_type, amount, payee, notes, payment_method, frequency, start_date, next_date, end_date, id],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Pauses or resumes an item. Resuming skips what fell due while paused.
+#[tauri::command]
+fn set_recurring_active(state: State<DbState>, id: String, active: bool) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    if active {
+        let (start, frequency): (String, String) = conn.query_row(
+            "SELECT start_date,frequency FROM recurring_transactions WHERE id=?1", params![id],
+            |r| Ok((r.get(0)?, r.get(1)?))).map_err(|e| e.to_string())?;
+        let next = next_unposted(&conn, &id, &start, &frequency, chrono::Local::now().date_naive())?;
+        conn.execute("UPDATE recurring_transactions SET is_active=1,next_date=?1 WHERE id=?2", params![next, id])
+            .map_err(|e| e.to_string())?;
+    } else {
+        conn.execute("UPDATE recurring_transactions SET is_active=0 WHERE id=?1", params![id])
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn delete_recurring_transaction(state: State<DbState>, id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
@@ -1260,6 +1509,123 @@ fn export_transactions_csv(state: State<DbState>) -> Result<String, String> {
             notes.replace(',', ";"), method, tags.replace(',', ";"), acct));
     }
     Ok(csv)
+}
+
+#[tauri::command]
+fn get_stats(state: State<DbState>) -> Result<Stats, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let count = |table: &str| -> Result<i64, String> {
+        conn.query_row(&format!("SELECT COUNT(*) FROM {}", table), [], |r| r.get(0)).map_err(|e| e.to_string())
+    };
+    Ok(Stats {
+        transactions: count("transactions")?,
+        accounts: count("accounts")?,
+        categories: count("categories")?,
+        loans: count("loans")?,
+    })
+}
+
+// ─── Backup ───────────────────────────────────────────────────────────────────
+//
+// A backup is every row of every table, keyed by column name. Tables are listed
+// parents first, so restoring in this order satisfies the foreign keys.
+
+const BACKUP_VERSION: i64 = 2;
+const BACKUP_TABLES: [&str; 10] = [
+    "accounts", "categories", "tuition_fees", "savings_goals", "transactions",
+    "budgets", "loans", "loan_repayments", "recurring_transactions", "balance_adjustments",
+];
+
+#[tauri::command]
+fn export_backup(state: State<DbState>) -> Result<String, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut out = serde_json::Map::new();
+    out.insert("app".into(), json!("manmoney"));
+    out.insert("version".into(), json!(BACKUP_VERSION));
+    out.insert("exported_at".into(), json!(Utc::now().to_rfc3339()));
+    for table in BACKUP_TABLES {
+        let mut stmt = conn.prepare(&format!("SELECT * FROM {}", table)).map_err(|e| e.to_string())?;
+        let cols: Vec<String> = stmt.column_names().into_iter().map(String::from).collect();
+        let rows = stmt.query_map([], |r| {
+            let mut row = serde_json::Map::new();
+            for (i, col) in cols.iter().enumerate() {
+                let v = match r.get_ref(i)? {
+                    ValueRef::Null | ValueRef::Blob(_) => Value::Null,
+                    ValueRef::Integer(n) => json!(n),
+                    ValueRef::Real(f) => json!(f),
+                    ValueRef::Text(t) => Value::String(String::from_utf8_lossy(t).into_owned()),
+                };
+                row.insert(col.clone(), v);
+            }
+            Ok(Value::Object(row))
+        }).map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        out.insert(table.into(), Value::Array(rows));
+    }
+    serde_json::to_string_pretty(&Value::Object(out)).map_err(|e| e.to_string())
+}
+
+fn json_to_sql(v: &Value) -> rusqlite::types::Value {
+    use rusqlite::types::Value as Sql;
+    match v {
+        Value::Null => Sql::Null,
+        Value::Bool(b) => Sql::Integer(*b as i64),
+        Value::Number(n) => match n.as_i64() {
+            Some(i) => Sql::Integer(i),
+            None => Sql::Real(n.as_f64().unwrap_or(0.0)),
+        },
+        Value::String(s) => Sql::Text(s.clone()),
+        other => Sql::Text(other.to_string()),
+    }
+}
+
+/// Replaces all data with a backup. The current database is first copied next
+/// to itself as manmoney-before-restore-<time>.db, so a restore can be undone by hand.
+#[tauri::command]
+fn import_backup(state: State<DbState>, json: String) -> Result<(), String> {
+    const NOT_A_BACKUP: &str = "This file isn't a ManMoney backup";
+    let data: Value = serde_json::from_str(&json).map_err(|_| NOT_A_BACKUP.to_string())?;
+    if data.get("app").and_then(Value::as_str) != Some("manmoney") {
+        return Err(NOT_A_BACKUP.into());
+    }
+    match data.get("version").and_then(Value::as_i64) {
+        Some(BACKUP_VERSION) => {}
+        Some(v) if v > BACKUP_VERSION => return Err("This backup is from a newer ManMoney. Update the app first.".into()),
+        _ => return Err("This backup's format is too old to restore".into()),
+    }
+
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let db_file: String = conn.query_row("SELECT file FROM pragma_database_list WHERE name='main'", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let copy = std::path::Path::new(&db_file)
+        .with_file_name(format!("manmoney-before-restore-{}.db", chrono::Local::now().format("%Y%m%d-%H%M%S")));
+    conn.execute("VACUUM INTO ?1", params![copy.to_string_lossy().to_string()])
+        .map_err(|e| format!("Couldn't save a copy of your current data: {}", e))?;
+
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for table in BACKUP_TABLES.iter().rev() {
+        tx.execute(&format!("DELETE FROM {}", table), []).map_err(|e| e.to_string())?;
+    }
+    for table in BACKUP_TABLES {
+        // Only columns this version knows; also keeps names from the file out of the SQL.
+        let known: std::collections::HashSet<String> = {
+            let mut stmt = tx.prepare(&format!("SELECT name FROM pragma_table_info('{}')", table)).map_err(|e| e.to_string())?;
+            let names = stmt.query_map([], |r| r.get::<_, String>(0)).map_err(|e| e.to_string())?
+                .collect::<Result<std::collections::HashSet<String>, _>>().map_err(|e| e.to_string())?;
+            names
+        };
+        let Some(rows) = data.get(table).and_then(Value::as_array) else { continue };
+        for row in rows {
+            let obj = row.as_object().ok_or_else(|| NOT_A_BACKUP.to_string())?;
+            let cols: Vec<&str> = obj.keys().map(String::as_str).filter(|c| known.contains(*c)).collect();
+            if cols.is_empty() { continue; }
+            let sql = format!("INSERT INTO {} ({}) VALUES ({})", table, cols.join(","),
+                (1..=cols.len()).map(|i| format!("?{}", i)).collect::<Vec<_>>().join(","));
+            tx.execute(&sql, rusqlite::params_from_iter(cols.iter().map(|c| json_to_sql(&obj[*c]))))
+                .map_err(|e| format!("Couldn't restore {}: {}", table.replace('_', " "), e))?;
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1325,6 +1691,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_accounts, create_account, update_account, set_accounts_currency, delete_account,
+            get_account_usage, merge_account,
             get_categories, create_category, update_category, delete_category,
             get_transactions, create_transaction, update_transaction, delete_transaction,
             get_budgets, upsert_budget, delete_budget,
@@ -1335,7 +1702,8 @@ pub fn run() {
             get_loan_repayments, add_loan_repayment, delete_loan_repayment, offset_loans, create_shared_expense,
             get_dashboard_data, get_spending_by_category, get_daily_spending,
             get_recurring_transactions, create_recurring_transaction, delete_recurring_transaction,
-            export_transactions_csv, get_db_path,
+            process_recurring, update_recurring_transaction, set_recurring_active,
+            export_transactions_csv, export_backup, import_backup, get_stats, get_db_path,
         ])
         .run(tauri::generate_context!())
         .expect("ManMoney startup failed");

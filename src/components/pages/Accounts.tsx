@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Wallet, Building2, CreditCard, TrendingUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Wallet, Building2, CreditCard, TrendingUp, ArrowRightLeft } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
+import { RowMenu } from '../ui/RowMenu';
 import { PageHeader } from '../layout/PageHeader';
-import type { Account } from '../../types';
+import type { Account, AccountUsage } from '../../types';
 
 const COLORS = ['#BD5C42','#4E7A52','#B23E2E','#B5852A','#8A5A78','#3F7E7A','#A87E2E','#B05772','#6E7A3F','#5B6675'];
 
@@ -18,95 +20,144 @@ const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   investment: TrendingUp,
 };
 
-function AccountForm({ acct, onSave, onCancel }: { acct?: Account; onSave: () => void; onCancel: () => void }) {
+const faint = { fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' } as const;
+
+function AccountForm({ acct, onSaved, onClose }: { acct?: Account; onSaved: () => void; onClose: () => void }) {
   const { showToast, currency } = useAppStore();
   const [name, setName] = useState(acct?.name ?? '');
   const [type, setType] = useState<Account['account_type']>(acct?.account_type ?? 'bank');
-  const [balance, setBalance] = useState(acct?.balance?.toString() ?? '0');
+  const [balance, setBalance] = useState('0');
   const [color, setColor] = useState(acct?.color ?? COLORS[0]);
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ name, type, balance, color });
 
   const handleSave = async () => {
-    if (!name.trim()) return showToast('Enter an account name', 'error');
+    if (!name.trim()) return showToast('Enter a name', 'error');
     setSaving(true);
     try {
-      if (acct) {
-        await api.accounts.update({ id: acct.id, name: name.trim(), account_type: type, currency, color, icon: 'wallet' });
-        showToast('Account updated');
-      } else {
-        await api.accounts.create({ name: name.trim(), account_type: type, balance: parseFloat(balance) || 0, currency, color, icon: 'wallet' });
-        showToast('Account created');
-      }
-      onSave();
+      if (acct) await api.accounts.update({ id: acct.id, name: name.trim(), account_type: type, currency, color, icon: 'wallet' });
+      else await api.accounts.create({ name: name.trim(), account_type: type, balance: parseFloat(balance) || 0, currency, color, icon: 'wallet' });
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="space-y-4">
+    <FormSheet title={acct ? 'Edit account' : 'Add account'} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
       <div>
-        <label className="label mb-1.5 block">Account Name</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="e.g. Main Checking, Cash Wallet…" autoFocus />
+        <label className="label mb-1.5 block">Name</label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="Main checking, cash wallet" autoFocus />
       </div>
       <div>
-        <p className="label mb-2">Account Type</p>
-        <div className="grid grid-cols-2 gap-2">
+        <p className="label mb-2">Type</p>
+        <div className="grid grid-cols-2 gap-2" role="group" aria-label="Type">
           {(['cash', 'bank', 'credit', 'investment'] as const).map(t => {
             const Icon = TYPE_ICONS[t] ?? Wallet;
+            const on = type === t;
             return (
-              <button key={t} onClick={() => setType(t)}
-                className="flex items-center gap-2 p-3 rounded-xl border-2 text-sm font-medium capitalize transition-all"
-                style={type === t
-                  ? { borderColor: 'var(--clay)', background: 'var(--clay-tint)', color: 'var(--clay-ink)' }
-                  : { borderColor: 'var(--line)', color: 'var(--text-secondary)' }}>
+              <button key={t} type="button" onClick={() => setType(t)} aria-pressed={on}
+                className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium capitalize transition-all"
+                style={on
+                  ? { border: '1px solid transparent', background: 'var(--clay-tint)', color: 'var(--clay-ink)' }
+                  : { border: '1px solid var(--line)', color: 'var(--text-secondary)' }}>
                 <Icon size={16} /> {t}
               </button>
             );
           })}
         </div>
       </div>
-      <div>
-        <label className="label mb-1.5 block">{acct ? 'Current Balance' : 'Opening Balance'}</label>
-        <MoneyInput value={balance} onChange={e => setBalance(e.target.value)} disabled={!!acct} />
-        {acct && <p className="text-xs text-[hsl(var(--text-muted))] mt-1">Balance is managed through transactions</p>}
-      </div>
+      {acct ? (
+        <p style={faint}>Balance: {formatCurrency(acct.balance)}. It changes through transactions.</p>
+      ) : (
+        <div>
+          <label className="label mb-1.5 block">Opening balance</label>
+          <MoneyInput value={balance} onChange={e => setBalance(e.target.value)} />
+        </div>
+      )}
       <div>
         <label className="label mb-2 block">Color</label>
         <div className="flex gap-2 flex-wrap">
           {COLORS.map(c => (
-            <button key={c} onClick={() => setColor(c)}
+            <button key={c} type="button" onClick={() => setColor(c)} aria-label={`Colour ${c}`} aria-pressed={color === c}
               className={`w-7 h-7 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-[hsl(var(--text))] scale-110' : 'hover:scale-105'}`}
               style={{ backgroundColor: c }} />
           ))}
         </div>
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : acct ? 'Update Account' : 'Create Account'}
-        </button>
+    </FormSheet>
+  );
+}
+
+/** Moves every entry and the balance into another account, then deletes this one. */
+function MergeAccountForm({ from, usage, onSaved, onClose }: { from: Account; usage?: AccountUsage; onSaved: () => void; onClose: () => void }) {
+  const { accounts, showToast } = useAppStore();
+  const targets = accounts.filter(a => a.id !== from.id);
+  const [toId, setToId] = useState(targets[0]?.id ?? '');
+  const [saving, setSaving] = useState(false);
+  const entries = usage?.entries ?? 0;
+
+  const handleSave = async () => {
+    if (!toId) return showToast('Pick an account', 'error');
+    setSaving(true);
+    try {
+      await api.accounts.merge(from.id, toId);
+      showToast(`Moved to ${targets.find(a => a.id === toId)?.name ?? 'account'}`);
+      onSaved();
+      onClose();
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const moves = [
+    entries > 0 ? `${entries} ${entries === 1 ? 'entry' : 'entries'}` : '',
+    Math.abs(from.balance) > 0.005 ? `a ${formatCurrency(from.balance)} balance` : '',
+  ].filter(Boolean).join(' and ');
+
+  return (
+    <FormSheet title="Move everything" onClose={onClose} onSubmit={handleSave} saving={saving} submitLabel="Move">
+      <div>
+        <label htmlFor="merge-to" className="block mb-1.5" style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--ink)' }}>
+          Move everything from <b>{from.name}</b> into
+        </label>
+        <select id="merge-to" value={toId} onChange={e => setToId(e.target.value)} className="input" autoFocus>
+          {targets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
       </div>
-    </div>
+      <p style={faint}>
+        {moves ? `${moves.charAt(0).toUpperCase()}${moves.slice(1)} move. ` : ''}{from.name} is then deleted.
+      </p>
+    </FormSheet>
   );
 }
 
 export function Accounts() {
-  const { accounts, fetchAccounts, showToast } = useAppStore();
+  const { accounts, fetchAccounts, fetchDashboard, showToast } = useAppStore();
   const [showForm, setShowForm] = useState(false);
   const [editAcct, setEditAcct] = useState<Account | undefined>();
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [mergeAcct, setMergeAcct] = useState<Account | undefined>();
+  const [deleteAcct, setDeleteAcct] = useState<Account | undefined>();
+  const [usage, setUsage] = useState<Record<string, AccountUsage>>({});
 
-  useEffect(() => { fetchAccounts(); }, []);
+  const loadUsage = () => api.accounts.usage()
+    .then(rows => setUsage(Object.fromEntries(rows.map(u => [u.account_id, u]))))
+    .catch(e => console.error('accountUsage', e));
+  const refresh = () => { fetchAccounts(); fetchDashboard(); loadUsage(); };
+
+  useEffect(() => { fetchAccounts(); loadUsage(); }, []);
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteAcct) return;
     try {
-      await api.accounts.delete(deleteId);
+      await api.accounts.delete(deleteAcct.id);
       showToast('Account deleted');
-      setDeleteId(null);
-      fetchAccounts();
+      setDeleteAcct(undefined);
+      refresh();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
   };
+
+  const openEdit = (a?: Account) => { setEditAcct(a); setShowForm(true); };
 
   const net = accounts.reduce((s, a) => s + a.balance, 0);
   const assets = accounts.filter(a => a.balance >= 0).reduce((s, a) => s + a.balance, 0);
@@ -118,8 +169,8 @@ export function Accounts() {
         eyebrow="Where it lives"
         title="Accounts"
         actions={
-          <button onClick={() => { setEditAcct(undefined); setShowForm(true); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={15} /> Add Account
+          <button onClick={() => openEdit()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={15} /> Add account
           </button>
         }
       />
@@ -130,8 +181,8 @@ export function Accounts() {
             <EmptyState
               icon={<Wallet size={22} />}
               title="No accounts"
-              description="Create accounts to track your cash, bank, credit, and investment balances."
-              action={<button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add Account</button>}
+              description="Add the cash, bank, credit and investment accounts you want to track."
+              action={<button onClick={() => openEdit()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add account</button>}
             />
           ) : (
             <>
@@ -167,11 +218,15 @@ export function Accounts() {
                 {accounts.map(a => {
                   const Icon = TYPE_ICONS[a.account_type] ?? Wallet;
                   const neg = a.balance < 0;
+                  const entries = usage[a.id]?.entries ?? 0;
                   return (
-                    <div key={a.id} className="mm-acctrow" style={{
-                      display: 'flex', alignItems: 'center', gap: 16,
-                      padding: '18px 8px', borderBottom: '1px solid var(--line)',
-                    }}>
+                    <div key={a.id} className="mm-acctrow group" role="button" tabIndex={0}
+                      onClick={() => openEdit(a)}
+                      onKeyDown={e => { if (e.key === 'Enter' && e.target === e.currentTarget) openEdit(a); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer',
+                        padding: '18px 8px', borderBottom: '1px solid var(--line)',
+                      }}>
                       <div style={{
                         width: 40, height: 40, borderRadius: 12, flexShrink: 0,
                         background: `${a.color}20`, color: a.color,
@@ -183,17 +238,7 @@ export function Accounts() {
                         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink-strong)' }}>
                           {a.name}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center',
-                            borderRadius: 999, padding: '2px 8px',
-                            background: 'var(--paper-sunk)',
-                            fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 500,
-                            color: 'var(--ink-muted)', textTransform: 'capitalize',
-                          }}>
-                            {a.account_type}
-                          </span>
-                        </div>
+                        <div style={{ ...faint, marginTop: 2, textTransform: 'capitalize' }}>{a.account_type}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{
@@ -203,22 +248,19 @@ export function Accounts() {
                         }}>
                           {formatCurrency(Math.abs(a.balance))}
                         </div>
-                        {neg && <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--negative)', marginTop: 2 }}>owed</div>}
+                        {neg && <div style={{ ...faint, fontSize: 12, marginTop: 2 }}>owed</div>}
                       </div>
-                      <div style={{ display: 'flex', gap: 4, marginLeft: 4 }}>
-                        <button onClick={() => { setEditAcct(a); setShowForm(true); }}
-                          style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 6, display: 'flex' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--paper-sunk)'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}>
-                          <Pencil size={13} />
-                        </button>
-                        <button onClick={() => setDeleteId(a.id)}
-                          style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 6, display: 'flex' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}>
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                      <RowMenu items={[
+                        { label: 'Edit', icon: <Pencil size={13} />, onSelect: () => openEdit(a) },
+                        {
+                          label: 'Move everything to…', icon: <ArrowRightLeft size={13} />, onSelect: () => setMergeAcct(a),
+                          disabled: accounts.length < 2, hint: 'Add another account first',
+                        },
+                        {
+                          label: 'Delete', icon: <Trash2 size={13} />, onSelect: () => setDeleteAcct(a), danger: true,
+                          disabled: entries > 0, hint: `Has ${entries} ${entries === 1 ? 'entry' : 'entries'}. Move them first.`,
+                        },
+                      ]} />
                     </div>
                   );
                 })}
@@ -228,18 +270,23 @@ export function Accounts() {
         </div>
       </div>
 
-      <Modal open={showForm} onClose={() => { setShowForm(false); setEditAcct(undefined); }} title={editAcct ? 'Edit Account' : 'Add Account'} size="sm">
-        <AccountForm
-          acct={editAcct}
-          onSave={() => { setShowForm(false); setEditAcct(undefined); fetchAccounts(); }}
-          onCancel={() => { setShowForm(false); setEditAcct(undefined); }}
-        />
-      </Modal>
+      {showForm && (
+        <AccountForm key={editAcct?.id ?? 'new'} acct={editAcct} onSaved={refresh}
+          onClose={() => { setShowForm(false); setEditAcct(undefined); }} />
+      )}
 
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Account" size="sm"
-        footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
+      {mergeAcct && (
+        <MergeAccountForm key={mergeAcct.id} from={mergeAcct} usage={usage[mergeAcct.id]} onSaved={refresh}
+          onClose={() => setMergeAcct(undefined)} />
+      )}
+
+      <Modal open={!!deleteAcct} onClose={() => setDeleteAcct(undefined)} title="Delete account" size="sm"
+        footer={<><button onClick={() => setDeleteAcct(undefined)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
       >
-        <p className="text-sm text-[hsl(var(--text-muted))]">Delete this account? All transactions linked to it will remain but balances won't be tracked.</p>
+        <p className="text-sm text-[hsl(var(--text-muted))]">
+          Deletes {deleteAcct?.name}. Nothing uses it{deleteAcct && Math.abs(deleteAcct.balance) > 0.005
+            ? `, but its ${formatCurrency(deleteAcct.balance)} balance leaves your net worth` : ''}.
+        </p>
       </Modal>
     </div>
   );

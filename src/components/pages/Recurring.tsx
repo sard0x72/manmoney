@@ -1,74 +1,77 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Repeat, Calendar } from 'lucide-react';
+import { Plus, Trash2, Repeat, Calendar, Pencil, Pause, Play } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
+import { Segmented } from '../ui/Segmented';
+import { RowMenu } from '../ui/RowMenu';
 import { PageHeader } from '../layout/PageHeader';
+import { PAYMENT_METHODS, methodLabel } from '../forms/TransactionForm';
+import type { RecurringTransaction } from '../../types';
 
-const PAYMENT_METHODS = ['cash', 'bank transfer', 'credit card', 'debit card', 'mobile payment', 'check', 'other'];
+type Frequency = RecurringTransaction['frequency'];
+type Kind = 'income' | 'expense';
 
-function RecurringForm({ onSave, onCancel }: { onSave: () => void; onCancel: () => void }) {
+function RecurringForm({ item, onSaved, onClose }: { item?: RecurringTransaction; onSaved: () => void; onClose: () => void }) {
   const { accounts, categories, showToast } = useAppStore();
-  const [type, setType] = useState<'income' | 'expense'>('expense');
-  const [amount, setAmount] = useState('');
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
-  const [categoryId, setCategoryId] = useState('');
-  const [payee, setPayee] = useState('');
-  const [notes, setNotes] = useState('');
-  const [method, setMethod] = useState('bank transfer');
-  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
-  const [startDate, setStartDate] = useState(todayISO());
-  const [endDate, setEndDate] = useState('');
+  const ofType = (t: Kind) => categories.filter(c => c.category_type === t);
+  const initialType: Kind = item?.transaction_type === 'income' ? 'income' : 'expense';
+  const [type, setType] = useState<Kind>(initialType);
+  const [amount, setAmount] = useState(item?.amount?.toString() ?? '');
+  const [accountId, setAccountId] = useState(item?.account_id ?? accounts[0]?.id ?? '');
+  const [categoryId, setCategoryId] = useState(item?.category_id ?? ofType(initialType)[0]?.id ?? '');
+  const [payee, setPayee] = useState(item?.payee ?? '');
+  const [notes, setNotes] = useState(item?.notes ?? '');
+  const [method, setMethod] = useState(item?.payment_method ?? 'bank transfer');
+  const [frequency, setFrequency] = useState<Frequency>(item?.frequency ?? 'monthly');
+  const [startDate, setStartDate] = useState(item?.start_date ?? todayISO());
+  const [endDate, setEndDate] = useState(item?.end_date ?? '');
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ type, amount, accountId, categoryId, payee, notes, method, frequency, startDate, endDate });
 
-  const filteredCategories = categories.filter(c => c.category_type === type);
+  const changeType = (t: Kind) => {
+    setType(t);
+    if (!ofType(t).some(c => c.id === categoryId)) setCategoryId(ofType(t)[0]?.id ?? '');
+  };
 
   const handleSave = async () => {
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return showToast('Enter a valid amount', 'error');
-    if (!accountId) return showToast('Select an account', 'error');
+    if (!amt || amt <= 0) return showToast('Enter an amount', 'error');
+    if (!categoryId) return showToast('Pick a category', 'error');
+    if (!accountId) return showToast('Pick an account', 'error');
+    if (endDate && endDate < startDate) return showToast('End after it starts', 'error');
     setSaving(true);
     try {
-      const catId = categoryId || filteredCategories[0]?.id || categories[0]?.id || '';
-      await api.recurring.create({
-        account_id: accountId, category_id: catId, transaction_type: type,
+      const data = {
+        account_id: accountId, category_id: categoryId, transaction_type: type,
         amount: amt, payee, notes, payment_method: method, frequency, start_date: startDate,
         end_date: endDate || undefined,
-      });
-      showToast('Recurring transaction created');
-      onSave();
+      };
+      if (item) await api.recurring.update({ ...data, id: item.id });
+      else await api.recurring.create(data);
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <p className="label mb-2">Type</p>
-        <div className="flex gap-1 p-1 bg-[hsl(var(--bg))] rounded-xl">
-          {(['expense', 'income'] as const).map(t => (
-            <button key={t} onClick={() => setType(t)}
-              className={`flex-1 py-1.5 rounded-lg text-sm font-medium capitalize transition-all ${type === t ? 'bg-[var(--surface)] shadow-card text-[hsl(var(--text))]' : 'text-[hsl(var(--text-muted))]'}`}>
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
+    <FormSheet title={item ? 'Edit recurring' : 'Add recurring'} size="md" onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
+      <Segmented value={type} onChange={changeType} label="Type" options={[['expense', 'Expense'], ['income', 'Income']]} />
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label mb-1.5 block">Amount</label>
-          <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
+          <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} min="0" step="0.01" autoFocus />
         </div>
         <div>
-          <label className="label mb-1.5 block">Frequency</label>
-          <select value={frequency} onChange={e => setFrequency(e.target.value as any)} className="input">
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
+          <label className="label mb-1.5 block">Category</label>
+          <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="input">
+            {ofType(type).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
       </div>
@@ -80,65 +83,95 @@ function RecurringForm({ onSave, onCancel }: { onSave: () => void; onCancel: () 
           </select>
         </div>
         <div>
-          <label className="label mb-1.5 block">Category</label>
-          <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="input">
-            <option value="">Auto-select</option>
-            {filteredCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          <label className="label mb-1.5 block">Frequency</label>
+          <select value={frequency} onChange={e => setFrequency(e.target.value as Frequency)} className="input">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
           </select>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label mb-1.5 block">Start Date</label>
+          <label className="label mb-1.5 block">Starts</label>
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input" />
         </div>
         <div>
-          <label className="label mb-1.5 block">End Date (optional)</label>
+          <label className="label mb-1.5 block">Ends</label>
           <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="input" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label mb-1.5 block">Payee</label>
-          <input type="text" value={payee} onChange={e => setPayee(e.target.value)} className="input" placeholder="Payee / merchant" />
+          <input type="text" value={payee} onChange={e => setPayee(e.target.value)} className="input" placeholder="Payee or merchant" />
         </div>
         <div>
-          <label className="label mb-1.5 block">Payment Method</label>
+          <label className="label mb-1.5 block">Payment method</label>
           <select value={method} onChange={e => setMethod(e.target.value)} className="input">
-            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{methodLabel(m)}</option>)}
           </select>
         </div>
       </div>
       <div>
-        <label className="label mb-1.5 block">Notes</label>
-        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="Optional notes…" />
+        <label className="label mb-1.5 block">Note</label>
+        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="Optional" />
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : 'Create Recurring'}
-        </button>
-      </div>
-    </div>
+    </FormSheet>
   );
 }
 
 export function Recurring() {
-  const { recurring, fetchRecurring, showToast } = useAppStore();
+  const { recurring, fetchRecurring, fetchAccounts, fetchDashboard, bumpData, showToast } = useAppStore();
   const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState<RecurringTransaction | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  useEffect(() => { fetchRecurring(); }, []);
+  // Post anything that fell due since the app started (it may have been open overnight).
+  useEffect(() => {
+    api.recurring.process(todayISO())
+      .then(added => {
+        if (added > 0) {
+          showToast(`Added ${added} recurring transaction${added === 1 ? '' : 's'}`, 'info');
+          fetchAccounts(); fetchDashboard(); bumpData();
+        }
+      })
+      .catch(e => console.error('processRecurring', e))
+      .finally(fetchRecurring);
+  }, []);
+
+  // A save may make entries fall due right away (a start date in the past).
+  const afterSave = async () => {
+    try {
+      const added = await api.recurring.process(todayISO());
+      if (added > 0) {
+        showToast(`Added ${added} recurring transaction${added === 1 ? '' : 's'}`, 'info');
+        fetchAccounts(); fetchDashboard(); bumpData();
+      }
+    } catch (e) { console.error('processRecurring', e); }
+    fetchRecurring();
+  };
+
+  const setActive = async (r: RecurringTransaction, active: boolean) => {
+    try {
+      await api.recurring.setActive(r.id, active);
+      showToast(active ? 'Resumed' : 'Paused');
+      fetchRecurring();
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
+  };
 
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
       await api.recurring.delete(deleteId);
-      showToast('Recurring transaction removed');
+      showToast('Recurring deleted');
       setDeleteId(null);
       fetchRecurring();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
   };
+
+  const openEdit = (r?: RecurringTransaction) => { setEditItem(r); setShowForm(true); };
 
   const monthlyOut = recurring.filter(r => r.is_active && r.transaction_type === 'expense')
     .reduce((s, r) => s + r.amount * ({ daily: 30, weekly: 4.3, monthly: 1, yearly: 1/12 }[r.frequency] ?? 1), 0);
@@ -146,7 +179,7 @@ export function Recurring() {
     .reduce((s, r) => s + r.amount * ({ daily: 30, weekly: 4.3, monthly: 1, yearly: 1/12 }[r.frequency] ?? 1), 0);
 
   const lead = recurring.length > 0
-    ? `${formatCurrency(monthlyIn)} in and ${formatCurrency(monthlyOut)} out each month, on autopilot.`
+    ? `${formatCurrency(monthlyIn)} in and ${formatCurrency(monthlyOut)} out each month.`
     : undefined;
 
   return (
@@ -156,8 +189,8 @@ export function Recurring() {
         title="Recurring"
         lead={lead}
         actions={
-          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={15} /> New Schedule
+          <button onClick={() => openEdit()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={15} /> Add recurring
           </button>
         }
       />
@@ -168,16 +201,19 @@ export function Recurring() {
             <EmptyState
               icon={<Repeat size={22} />}
               title="No recurring transactions"
-              description="Set up recurring transactions for bills, subscriptions, and regular income."
-              action={<button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add Recurring</button>}
+              description="Bills, subscriptions and income that repeat are added for you on each date."
+              action={<button onClick={() => openEdit()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add recurring</button>}
             />
           ) : (
             <>
               {recurring.map(r => (
-                <div key={r.id} className="mm-acctrow" style={{
-                  display: 'flex', alignItems: 'center', gap: 16,
-                  padding: '16px 8px', borderBottom: '1px solid var(--line)',
-                }}>
+                <div key={r.id} className="mm-acctrow group" role="button" tabIndex={0}
+                  onClick={() => openEdit(r)}
+                  onKeyDown={e => { if (e.key === 'Enter' && e.target === e.currentTarget) openEdit(r); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer',
+                    padding: '16px 8px', borderBottom: '1px solid var(--line)', opacity: r.is_active ? 1 : 0.6,
+                  }}>
                   <div style={{
                     width: 38, height: 38, borderRadius: 10, flexShrink: 0,
                     background: r.transaction_type === 'income' ? 'var(--positive-tint)' : 'var(--clay-tint)',
@@ -198,11 +234,13 @@ export function Recurring() {
                         fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 500,
                         color: 'var(--ink-muted)', textTransform: 'capitalize',
                       }}>
-                        {r.frequency}
+                        {r.is_active ? r.frequency : 'Paused'}
                       </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
-                        <Calendar size={12} /> Next {formatDate(r.next_date)}
-                      </span>
+                      {r.is_active && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
+                          <Calendar size={12} /> Next {formatDate(r.next_date)}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -217,14 +255,13 @@ export function Recurring() {
                       {r.account_name}
                     </div>
                   </div>
-                  <button
-                    onClick={() => setDeleteId(r.id)}
-                    style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 6, display: 'flex', marginLeft: 4 }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <RowMenu items={[
+                    { label: 'Edit', icon: <Pencil size={13} />, onSelect: () => openEdit(r) },
+                    r.is_active
+                      ? { label: 'Pause', icon: <Pause size={13} />, onSelect: () => setActive(r, false) }
+                      : { label: 'Resume', icon: <Play size={13} />, onSelect: () => setActive(r, true) },
+                    { label: 'Delete', icon: <Trash2 size={13} />, onSelect: () => setDeleteId(r.id), danger: true },
+                  ]} />
                 </div>
               ))}
 
@@ -244,14 +281,15 @@ export function Recurring() {
         </div>
       </div>
 
-      <Modal open={showForm} onClose={() => setShowForm(false)} title="Add Recurring Transaction" size="md">
-        <RecurringForm onSave={() => { setShowForm(false); fetchRecurring(); }} onCancel={() => setShowForm(false)} />
-      </Modal>
+      {showForm && (
+        <RecurringForm key={editItem?.id ?? 'new'} item={editItem} onSaved={afterSave}
+          onClose={() => { setShowForm(false); setEditItem(undefined); }} />
+      )}
 
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Remove Recurring" size="sm"
-        footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Remove</button></>}
+      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete recurring" size="sm"
+        footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
       >
-        <p className="text-sm text-[hsl(var(--text-muted))]">Remove this recurring transaction? Existing transactions are not affected.</p>
+        <p className="text-sm text-[hsl(var(--text-muted))]">Stops future entries. Entries already added stay.</p>
       </Modal>
     </div>
   );

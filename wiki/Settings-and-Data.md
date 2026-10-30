@@ -17,19 +17,29 @@ ManMoney uses **one currency** for everything — every account, transaction, bu
 
 The app works offline with no exchange rates, so a single currency is what keeps totals like your net worth correct: every number being added up is in the same unit.
 
-## Exporting your data
+## Exporting transactions
 
-Three export options, each for a different purpose:
+- **CSV**: every transaction in a plain, spreadsheet-friendly file.
+- **Excel**: the same transactions as an `.xlsx` workbook with named columns.
 
-- **Export as CSV** — all your transactions in a plain, spreadsheet-friendly CSV file. Good for opening in any spreadsheet tool or importing elsewhere.
-- **Export as Excel** — the same transactions as a proper `.xlsx` workbook, with named columns.
-- **Backup as JSON** — a structured backup of your transactions, categories, and accounts together. This is the most complete snapshot for keeping a record.
+Both always contain **all** your transactions, however many you have.
 
-Each export downloads a file stamped with the current date, so you can keep dated copies.
+## Backup and restore
+
+**Backup** saves everything in one `.json` file: accounts, categories, transactions, budgets, goals, tuition, loans and their paybacks, and recurring entries. The file name includes the date, so you can keep dated copies.
+
+**Restore from backup** replaces all your data with a backup file:
+
+1. Click **Restore** and pick a ManMoney backup file.
+2. ManMoney tells you what the file contains and asks you to confirm.
+3. Before it changes anything, it saves your current data as `manmoney-before-restore-<date>.db` next to the database. If you restored the wrong file, you can go back to that copy (see [[Troubleshooting]]).
+4. The app reloads with the restored data.
+
+Files that aren't ManMoney backups, and backups from a newer version of the app, are refused without changing anything. Older JSON exports, which only held transactions, categories and accounts, can't be restored.
 
 ## Database
 
-Your data is one SQLite file named `manmoney.db`. The **Show Path** button reveals exactly where it lives on your device. That single file is your entire dataset — copy it somewhere safe and you have a full backup; drop it back in place to restore.
+Your data is one SQLite file named `manmoney.db`. The **Show path** button reveals exactly where it lives on your device. That single file is your entire dataset: copy it somewhere safe and you have a full backup.
 
 ## Privacy and security
 
@@ -37,12 +47,12 @@ ManMoney is local-only by design. Your financial data is stored on your device a
 
 ## About
 
-The About section shows the app version and a quick tally of how much you've recorded — your transaction, account, and category counts.
+The About section shows how much you've recorded: your transaction, account, category and loan counts. They're counted in the database, so they're always the real totals.
 
 ## Tips
 
-- Make a habit of a **JSON backup** before anything risky (a big edit session, moving machines). It captures the most in one file.
-- For the most reliable backup, also keep a copy of the **`manmoney.db` file itself** from the path shown here. That's the true source of everything.
-- Exports are one-way (out of the app). To move to a new machine, copy the database file rather than relying on re-importing an export.
+- Make a **Backup** before anything risky, like a big edit session or moving to a new computer.
+- To move to a new computer, make a backup on the old one and **Restore from backup** on the new one.
+- CSV and Excel exports are one-way. Use them for spreadsheets, and a backup for moving your data.
 
 Related: [[Getting Started]] · [[Troubleshooting]]

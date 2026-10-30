@@ -2,123 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Trash2, Pencil, X, ReceiptText } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
-import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
+import { formatCurrency, formatDate } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
-import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { PageHeader } from '../layout/PageHeader';
+import { TransactionForm } from '../forms/TransactionForm';
 import type { Transaction } from '../../types';
 
-const PAYMENT_METHODS = ['cash', 'bank transfer', 'credit card', 'debit card', 'mobile payment', 'check', 'other'];
-
-function TransactionForm({ tx, onSave, onCancel }: { tx?: Transaction; onSave: () => void; onCancel: () => void }) {
-  const { accounts, categories, showToast } = useAppStore();
-  const [type, setType] = useState<'income' | 'expense'>(tx?.transaction_type ?? 'expense');
-  const [amount, setAmount] = useState(tx?.amount?.toString() ?? '');
-  const [date, setDate] = useState(tx?.date ?? todayISO());
-  const [accountId, setAccountId] = useState(tx?.account_id ?? accounts[0]?.id ?? '');
-  const [categoryId, setCategoryId] = useState(tx?.category_id ?? '');
-  const [payee, setPayee] = useState(tx?.payee ?? '');
-  const [notes, setNotes] = useState(tx?.notes ?? '');
-  const [method, setMethod] = useState(tx?.payment_method ?? 'cash');
-  const [tags, setTags] = useState(tx?.tags ?? '');
-  const [saving, setSaving] = useState(false);
-
-  const filteredCategories = categories.filter(c => c.category_type === (type === 'expense' ? 'expense' : 'income'));
-
-  useEffect(() => {
-    if (!categoryId) setCategoryId(filteredCategories[0]?.id ?? '');
-  }, [type]);
-
-  const handleSave = async () => {
-    const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return showToast('Enter a valid amount', 'error');
-    if (!accountId) return showToast('Select an account', 'error');
-    if (!categoryId) return showToast('Select a category', 'error');
-    setSaving(true);
-    try {
-      if (tx) {
-        await api.transactions.update({ id: tx.id, account_id: accountId, category_id: categoryId, transaction_type: type, amount: amt, date, notes, payee, payment_method: method, tags });
-        showToast('Transaction updated');
-      } else {
-        await api.transactions.create({ account_id: accountId, category_id: categoryId, transaction_type: type, amount: amt, date, notes, payee, payment_method: method, tags });
-        showToast('Transaction added');
-      }
-      onSave();
-    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* Type segmented */}
-      <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)' }}>
-        {(['expense', 'income'] as const).map(t => (
-          <button key={t} onClick={() => setType(t)} style={{
-            flex: 1, padding: '7px 0', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer',
-            fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, textTransform: 'capitalize',
-            background: type === t ? 'var(--surface)' : 'transparent',
-            color: type === t ? 'var(--ink)' : 'var(--ink-faint)',
-            boxShadow: type === t ? 'var(--shadow-sm)' : 'none',
-          }}>{t}</button>
-        ))}
-      </div>
-      <div>
-        <label className="label mb-1.5 block">Amount</label>
-        <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} min="0" step="0.01" autoFocus />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label mb-1.5 block">Date</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input" />
-        </div>
-        <div>
-          <label className="label mb-1.5 block">Account</label>
-          <select value={accountId} onChange={e => setAccountId(e.target.value)} className="input">
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-      </div>
-      <div>
-        <label className="label mb-1.5 block">Category</label>
-        <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="input">
-          <option value="">Select category…</option>
-          {filteredCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label mb-1.5 block">Payee</label>
-          <input type="text" value={payee} onChange={e => setPayee(e.target.value)} className="input" placeholder="Where / to whom?" />
-        </div>
-        <div>
-          <label className="label mb-1.5 block">Payment Method</label>
-          <select value={method} onChange={e => setMethod(e.target.value)} className="input">
-            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-      </div>
-      <div>
-        <label className="label mb-1.5 block">Notes</label>
-        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="Optional notes…" />
-      </div>
-      <div>
-        <label className="label mb-1.5 block">Tags (comma separated)</label>
-        <input type="text" value={tags} onChange={e => setTags(e.target.value)} className="input" placeholder="e.g. groceries, weekly" />
-      </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : tx ? 'Update' : 'Add Transaction'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function Transactions() {
-  const { transactions, transactionsLoading, fetchTransactions, fetchDashboard, fetchAccounts, showToast, categories, accounts } = useAppStore();
+  const { transactions, transactionsLoading, fetchTransactions, fetchDashboard, fetchAccounts, showToast, categories, accounts, dataVersion } = useAppStore();
   const [showForm, setShowForm] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | undefined>();
   const [search, setSearch] = useState('');
@@ -136,7 +29,7 @@ export function Transactions() {
   useEffect(() => {
     const t = setTimeout(refresh, 300);
     return () => clearTimeout(t);
-  }, [search, filterType, filterAccount, filterCategory]);
+  }, [search, filterType, filterAccount, filterCategory, dataVersion]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -311,9 +204,9 @@ export function Transactions() {
         </div>
       </div>
 
-      <Modal open={showForm} onClose={() => { setShowForm(false); setEditTx(undefined); }} title={editTx ? 'Edit Transaction' : 'Add a transaction'} size="md">
-        <TransactionForm tx={editTx} onSave={() => { setShowForm(false); setEditTx(undefined); refresh(); }} onCancel={() => { setShowForm(false); setEditTx(undefined); }} />
-      </Modal>
+      {showForm && (
+        <TransactionForm tx={editTx} onSaved={refresh} onClose={() => { setShowForm(false); setEditTx(undefined); }} />
+      )}
 
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Transaction" size="sm"
         footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}

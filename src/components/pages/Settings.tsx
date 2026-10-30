@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { Download, Database, FileText, FileSpreadsheet, ShieldCheck, ReceiptText, Tag, Wallet, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Download, Upload, Database, FileText, FileSpreadsheet, ShieldCheck, ReceiptText, Tag, Wallet, HandCoins, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { useAppStore, DEFAULT_NAV_ORDER } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { downloadBlob, CURRENCIES, todayISO } from '../../lib/utils';
 import { NAV_ITEMS } from '../../lib/nav';
 import { PageHeader } from '../layout/PageHeader';
+import { Modal } from '../ui/Modal';
+import type { Stats } from '../../types';
 import * as XLSX from 'xlsx';
 
 function MoveButton({ dir, disabled, onClick, label }: { dir: 'up' | 'down'; disabled: boolean; onClick: () => void; label: string }) {
@@ -73,22 +75,49 @@ function Row({ label, desc, children }: { label: string; desc?: string; children
   );
 }
 
+// What a restore would bring in, for the confirm dialog: "1,204 transactions, 6 accounts and 9 loans".
+const RESTORE_COUNTS: [string, string][] = [
+  ['transactions', 'transaction'], ['accounts', 'account'], ['categories', 'category'], ['loans', 'loan'],
+  ['budgets', 'budget'], ['savings_goals', 'goal'], ['recurring_transactions', 'recurring item'], ['tuition_fees', 'tuition fee'],
+];
+
+function describeBackup(data: Record<string, unknown>): string {
+  const parts = RESTORE_COUNTS.map(([key, noun]) => {
+    const n = Array.isArray(data[key]) ? (data[key] as unknown[]).length : 0;
+    if (n === 0) return '';
+    const plural = noun.endsWith('y') && !noun.endsWith('ay') ? `${noun.slice(0, -1)}ies` : `${noun}s`;
+    return `${n.toLocaleString('en-US')} ${n === 1 ? noun : plural}`;
+  }).filter(Boolean);
+  if (parts.length === 0) return 'It has no data';
+  return `It has ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`}`;
+}
+
 export function Settings() {
-  const { currency, setCurrency, transactions, categories, accounts, showToast, visibleSections, toggleSection, navOrder, moveNavItem, resetNavOrder } = useAppStore();
+  const { currency, setCurrency, fetchAll, showToast, visibleSections, toggleSection, navOrder, moveNavItem, resetNavOrder } = useAppStore();
   const isDefaultOrder = navOrder.every((p, i) => p === DEFAULT_NAV_ORDER[i]);
   const [dbPath, setDbPath] = useState('');
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [restore, setRestore] = useState<{ json: string; summary: string } | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Real totals from the database; the store only holds what the open pages loaded.
+  const loadStats = () => api.stats().then(setStats).catch(e => console.error('stats', e));
+  useEffect(() => { loadStats(); }, []);
 
   const exportCSV = async () => {
     try {
       const csv = await api.export.csv();
       downloadBlob(csv, `manmoney-export-${todayISO()}.csv`, 'text/csv');
-      showToast('CSV exported');
+      showToast('Exported');
     } catch (e: any) { showToast(e?.toString() ?? 'Export failed', 'error'); }
   };
 
   const exportExcel = async () => {
     try {
-      const rows = transactions.map(t => ({
+      // No limit: every transaction, not just the ones a page happens to have loaded.
+      const all = await api.transactions.list();
+      const rows = all.map(t => ({
         Date: t.date, Type: t.transaction_type, Amount: t.amount,
         Category: t.category_name ?? '', Payee: t.payee, Notes: t.notes,
         Account: t.account_name ?? '', 'Payment Method': t.payment_method, Tags: t.tags,
@@ -96,19 +125,44 @@ export function Settings() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Transactions');
       XLSX.writeFile(wb, `manmoney-export-${todayISO()}.xlsx`);
-      showToast('Excel file exported');
+      showToast('Exported');
     } catch { showToast('Export failed', 'error'); }
   };
 
-  const exportJSON = () => {
-    const data = JSON.stringify({ transactions, categories, accounts }, null, 2);
-    downloadBlob(data, `manmoney-backup-${todayISO()}.json`, 'application/json');
-    showToast('JSON backup exported');
+  const exportBackup = async () => {
+    try {
+      const json = await api.export.backup();
+      downloadBlob(json, `manmoney-backup-${todayISO()}.json`, 'application/json');
+      showToast('Backup saved');
+    } catch (e: any) { showToast(e?.toString() ?? 'Backup failed', 'error'); }
+  };
+
+  const pickBackup = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const json = await file.text();
+      const data = JSON.parse(json);
+      if (data?.app !== 'manmoney') throw new Error();
+      setRestore({ json, summary: describeBackup(data) });
+    } catch { showToast("This file isn't a ManMoney backup", 'error'); }
+  };
+
+  const doRestore = async () => {
+    if (!restore) return;
+    setRestoring(true);
+    try {
+      await api.export.restore(restore.json);
+      setRestore(null);
+      await fetchAll();
+      loadStats();
+      showToast('Restored');
+    } catch (e: any) { showToast(e?.toString() ?? 'Restore failed', 'error'); }
+    finally { setRestoring(false); }
   };
 
   const showDbPath = async () => {
     try { setDbPath(await api.export.dbPath()); }
-    catch { showToast('Failed to get DB path', 'error'); }
+    catch { showToast("Couldn't find the database", 'error'); }
   };
 
   return (
@@ -171,9 +225,16 @@ export function Settings() {
                 <FileSpreadsheet size={14} /> Excel
               </button>
             </Row>
-            <Row label="Backup as JSON" desc="Export all data (transactions, categories, accounts) as JSON.">
-              <button onClick={exportJSON} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <Download size={14} /> JSON
+            <Row label="Backup" desc="Every account, transaction, loan and setting in one file.">
+              <button onClick={exportBackup} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Download size={14} /> Backup
+              </button>
+            </Row>
+            <Row label="Restore from backup" desc="Replaces all data with a backup file.">
+              <input ref={fileRef} type="file" accept=".json,application/json" hidden
+                onChange={e => { pickBackup(e.target.files?.[0]); e.target.value = ''; }} />
+              <button onClick={() => fileRef.current?.click()} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Upload size={14} /> Restore
               </button>
             </Row>
           </Group>
@@ -231,17 +292,18 @@ export function Settings() {
               background: 'var(--paper-sunk)',
             }}>
               {[
-                { icon: <ReceiptText size={13} />, value: transactions.length, label: 'transactions' },
-                { icon: <Wallet size={13} />, value: accounts.length, label: 'accounts' },
-                { icon: <Tag size={13} />, value: categories.length, label: 'categories' },
-              ].map((stat, i) => (
+                { icon: <ReceiptText size={13} />, value: stats?.transactions, label: 'transactions' },
+                { icon: <Wallet size={13} />, value: stats?.accounts, label: 'accounts' },
+                { icon: <Tag size={13} />, value: stats?.categories, label: 'categories' },
+                { icon: <HandCoins size={13} />, value: stats?.loans, label: 'loans' },
+              ].map((stat, i, all) => (
                 <div key={i} style={{
                   flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                   padding: '12px 8px',
-                  borderRight: i < 2 ? '1px solid var(--line)' : 'none',
+                  borderRight: i < all.length - 1 ? '1px solid var(--line)' : 'none',
                 }}>
                   <span style={{ color: 'var(--ink-faint)', display: 'flex' }}>{stat.icon}</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>{stat.value}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>{stat.value?.toLocaleString('en-US') ?? '–'}</span>
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-faint)' }}>{stat.label}</span>
                 </div>
               ))}
@@ -250,6 +312,18 @@ export function Settings() {
 
         </div>
       </div>
+
+      <Modal open={!!restore} onClose={() => !restoring && setRestore(null)} title="Restore from backup" size="sm"
+        footer={<>
+          <button onClick={() => setRestore(null)} disabled={restoring} className="btn-secondary" autoFocus>Cancel</button>
+          <button onClick={doRestore} disabled={restoring} className="btn-danger">{restoring ? 'Restoring…' : 'Restore'}</button>
+        </>}
+      >
+        <p className="text-sm text-[hsl(var(--text-muted))]">
+          Replace all your data with this backup? {restore?.summary}. Your current data is saved first
+          as manmoney-before-restore-&lt;date&gt;.db next to the database.
+        </p>
+      </Modal>
     </div>
   );
 }

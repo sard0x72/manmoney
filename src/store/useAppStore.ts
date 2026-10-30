@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Account, Category, Transaction, Budget, SavingsGoal, TuitionFee, Loan, RecurringTransaction, DashboardData, Page } from '../types';
 import { api } from '../lib/api';
-import { currentYear, currentMonth, setAppCurrency } from '../lib/utils';
+import { currentYear, currentMonth, setAppCurrency, todayISO } from '../lib/utils';
 
 export type HideableSection = 'transactions' | 'budgets' | 'analytics' | 'goals' | 'tuition' | 'loans' | 'recurring' | 'categories' | 'accounts';
 
@@ -48,6 +48,13 @@ const savedCurrency = loadCurrency();
 const initialCurrency = savedCurrency ?? 'USD';
 setAppCurrency(initialCurrency);
 let currencyChosen = savedCurrency !== null;
+
+// One timer for the one toast on screen. A new toast clears the old timer, so
+// it can't hide the new toast early.
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let toastSeq = 0;
+
+export type QuickAddKind = 'transaction';
 
 interface AppState {
   // Navigation
@@ -100,9 +107,18 @@ interface AppState {
   fetchDashboard: () => Promise<void>;
 
   // Toast
-  toast: { message: string; type: 'success' | 'error' | 'info' } | null;
+  toast: { id: number; message: string; type: 'success' | 'error' | 'info' } | null;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   clearToast: () => void;
+
+  // The one add form that can open from anywhere
+  quickAdd: { kind: QuickAddKind } | null;
+  openQuickAdd: (kind: QuickAddKind) => void;
+  closeQuickAdd: () => void;
+
+  // Bumped after a save from outside the page (quick add), so open lists reload with their own filters
+  dataVersion: number;
+  bumpData: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -179,6 +195,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   fetchAll: async () => {
     set({ loading: true });
+    // Recurring items post first, so balances and lists below already include them.
+    try {
+      const added = await api.recurring.process(todayISO());
+      if (added > 0) get().showToast(`Added ${added} recurring transaction${added === 1 ? '' : 's'}`, 'info');
+    } catch (e) {
+      console.error('processRecurring', e);
+    }
     await Promise.all([
       get().fetchAccounts(),
       get().fetchCategories(),
@@ -283,8 +306,19 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   toast: null,
   showToast: (message, type = 'success') => {
-    set({ toast: { message, type } });
-    setTimeout(() => set({ toast: null }), 3500);
+    clearTimeout(toastTimer);
+    set({ toast: { id: ++toastSeq, message, type } });
+    toastTimer = setTimeout(() => set({ toast: null }), 3500);
   },
-  clearToast: () => set({ toast: null }),
+  clearToast: () => {
+    clearTimeout(toastTimer);
+    set({ toast: null });
+  },
+
+  quickAdd: null,
+  openQuickAdd: (kind) => set({ quickAdd: { kind } }),
+  closeQuickAdd: () => set({ quickAdd: null }),
+
+  dataVersion: 0,
+  bumpData: () => set(s => ({ dataVersion: s.dataVersion + 1 })),
 }));

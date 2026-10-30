@@ -4,27 +4,30 @@ import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, monthName } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { PageHeader } from '../layout/PageHeader';
 
-function BudgetForm({ onSave, onCancel, year, month }: { onSave: () => void; onCancel: () => void; year: number; month: number }) {
+function BudgetForm({ onSaved, onClose, year, month }: { onSaved: () => void; onClose: () => void; year: number; month: number }) {
   const { categories, showToast } = useAppStore();
   const expenseCats = categories.filter(c => c.category_type === 'expense');
   const [categoryId, setCategoryId] = useState(expenseCats[0]?.id ?? '');
   const [amount, setAmount] = useState('');
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ categoryId, amount });
 
   const handleSave = async () => {
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return showToast('Enter a valid amount', 'error');
-    if (!categoryId) return showToast('Select a category', 'error');
+    if (!amt || amt <= 0) return showToast('Enter an amount', 'error');
+    if (!categoryId) return showToast('Pick a category', 'error');
     setSaving(true);
     try {
       await api.budgets.upsert({ category_id: categoryId, amount: amt, year, month });
-      showToast('Budget saved');
-      onSave();
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) {
       showToast(e?.toString() ?? 'Error', 'error');
     } finally {
@@ -33,7 +36,7 @@ function BudgetForm({ onSave, onCancel, year, month }: { onSave: () => void; onC
   };
 
   return (
-    <div className="space-y-4">
+    <FormSheet title="Add budget" onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
       <div>
         <label className="label mb-1.5 block">Category</label>
         <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="input">
@@ -41,19 +44,10 @@ function BudgetForm({ onSave, onCancel, year, month }: { onSave: () => void; onC
         </select>
       </div>
       <div>
-        <label className="label mb-1.5 block">Budget Amount</label>
+        <label className="label mb-1.5 block">Amount</label>
         <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
       </div>
-      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
-        Setting a budget for {monthName(month)} {year}. Existing budgets for this category will be updated.
-      </p>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : 'Save Budget'}
-        </button>
-      </div>
-    </div>
+    </FormSheet>
   );
 }
 
@@ -189,9 +183,9 @@ export function Budgets() {
         </div>
       </div>
 
-      <Modal open={showForm} onClose={() => setShowForm(false)} title="Set Budget" size="sm">
-        <BudgetForm year={budgetYear} month={budgetMonth} onSave={() => { setShowForm(false); fetchBudgets(); }} onCancel={() => setShowForm(false)} />
-      </Modal>
+      {showForm && (
+        <BudgetForm year={budgetYear} month={budgetMonth} onSaved={fetchBudgets} onClose={() => setShowForm(false)} />
+      )}
 
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Remove Budget" size="sm"
         footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Remove</button></>}

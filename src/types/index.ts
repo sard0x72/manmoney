@@ -155,6 +155,23 @@ export interface DailySpending {
   expenses: number;
 }
 
+export interface Stats {
+  transactions: number;
+  accounts: number;
+  categories: number;
+  loans: number;
+}
+
+/** What still points at an account. One that's in use can't be deleted, only merged. */
+export interface AccountUsage {
+  account_id: string;
+  transactions: number;
+  loans: number;
+  recurring: number;
+  adjustments: number;
+  entries: number;
+}
+
 export type Page =
   | 'dashboard'
   | 'transactions'

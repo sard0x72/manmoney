@@ -1,33 +1,49 @@
 # Recurring Transactions
 
-Recurring transactions are templates for money that moves on a schedule — rent, a salary, a streaming subscription. Instead of remembering to log them every time, you define them once with a frequency and a start date.
+Recurring transactions are money that moves on a schedule: rent, a salary, a streaming subscription. You set one up once, and ManMoney adds the transaction for you on every date it falls due.
 
 ## What a recurring entry holds
 
 - A **type**: income or expense.
 - An **amount**.
+- A **category**. Every entry needs one, so its transactions land in the right place in [[Budgets]] and [[Analytics]].
+- An **account** the money comes out of or goes into.
 - A **frequency**: daily, weekly, monthly, or yearly.
-- An **account** it applies to.
-- A **category** (you can let the app auto-select a sensible one, or choose explicitly).
 - A **start date** and an optional **end date**.
-- **Payee**, **payment method**, and **notes**.
+- **Payee**, **payment method**, and a **note**.
 
-## Creating one
+## Adding one
 
-Click *Add Recurring*, choose income or expense, set the amount and frequency, pick the account, and set when it starts. Leave the category on *Auto-select* to let the app fill it in, or pick one yourself. Add an end date if it shouldn't run forever.
+Click **Add recurring**, choose expense or income, and fill in the amount, category, account, frequency and start date. Add an end date if it shouldn't run forever. Click **Save** or press Enter.
+
+## Entries are added automatically
+
+Each time you open ManMoney, it adds every transaction that has fallen due since the last time, and a short message says how many it added. Opening the Recurring page checks again, in case the app was left open overnight.
+
+- An entry that started three months ago adds one transaction per occurrence, up to today.
+- Each date is added only once. Restarting the app never adds duplicates.
+- Monthly dates are counted from the start date, so an entry on the 31st lands on Jan 31, Feb 28, then Mar 31 again.
+- Added transactions are ordinary transactions. They move the account balance and count as income or spending. You can edit or delete them in [[Transactions]] like any other.
+
+## Editing, pausing and deleting
+
+Click a row to edit it. Use the **⋯** menu on the row for the rest.
+
+| Action | What happens |
+|---|---|
+| **Edit** | Changes future entries. If you change the start date or frequency, the next date moves to the first new date from today on. Past entries are left alone. |
+| **Pause** | Stops adding entries. The row shows *Paused*. |
+| **Resume** | Starts again from today. Dates that passed while it was paused are skipped. |
+| **Delete** | Stops future entries. Entries already added stay. |
 
 ## Reading the page
 
-Each recurring entry is listed with its frequency badge, type, account, and the next date it's due. The header shows the **monthly net impact** of all your active recurring entries — it normalizes every frequency to a monthly figure (a weekly item counts as roughly 4.3 times, a yearly item as one-twelfth, and so on) and nets income against expenses. That number is a quick estimate of how much your fixed, repeating commitments move your budget each month.
-
-## What it does and doesn't do
-
-Think of recurring entries as a **plan and a reminder**. They capture your regular commitments in one place and show their combined monthly weight. When a real instance of one occurs, record it as a normal transaction in [[Transactions]] so it affects your account balances and analytics. Removing a recurring entry never touches transactions you've already recorded.
+Each row shows the frequency, the next date and the account. The header shows how much comes in and goes out each month across all active entries, and the footer shows the net.
 
 ## Tips
 
-- Enter every fixed bill and your regular income so the **monthly net impact** reflects your true baseline. Once that's set up, you know at a glance how much room the rest of your spending has.
-- Set an **end date** on anything with a known finish (a 12-month phone contract, a fixed-term loan) so it stops counting once it's done.
-- Review the list when you sign up for or cancel a subscription — it's the fastest way to spot recurring costs you forgot you had.
+- Enter every fixed bill and your regular income, so the monthly figures reflect your true baseline.
+- Set an **end date** on anything with a known finish, like a 12-month phone contract.
+- **Pause** a subscription you've put on hold instead of deleting it. Resuming later keeps its settings.
 
 Related: [[Transactions]] · [[Budgets]] · [[Categories]]

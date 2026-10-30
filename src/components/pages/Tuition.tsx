@@ -4,66 +4,63 @@ import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { PageHeader } from '../layout/PageHeader';
+import { PAYMENT_METHODS, methodLabel } from '../forms/TransactionForm';
 import type { TuitionFee, TuitionPayment } from '../../types';
 
-const PAYMENT_METHODS = ['cash', 'bank transfer', 'credit card', 'debit card', 'mobile payment', 'check', 'other'];
-
-function TuitionForm({ fee, onSave, onCancel }: { fee?: TuitionFee; onSave: () => void; onCancel: () => void }) {
+function TuitionForm({ fee, onSaved, onClose }: { fee?: TuitionFee; onSaved: () => void; onClose: () => void }) {
   const { showToast } = useAppStore();
   const [name, setName] = useState(fee?.name ?? '');
   const [total, setTotal] = useState(fee?.total_amount?.toString() ?? '');
   const [dueDate, setDueDate] = useState(fee?.due_date ?? '');
   const [notes, setNotes] = useState(fee?.notes ?? '');
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ name, total, dueDate, notes });
 
   const handleSave = async () => {
     const amt = parseFloat(total);
-    if (!name.trim()) return showToast('Enter a name, e.g. the academic year', 'error');
-    if (!amt || amt <= 0) return showToast('Enter the total tuition fee', 'error');
+    if (!name.trim()) return showToast('Enter a name', 'error');
+    if (!amt || amt <= 0) return showToast('Enter the total', 'error');
     setSaving(true);
     try {
       const data = { name: name.trim(), total_amount: amt, due_date: dueDate || undefined, notes };
-      if (fee) { await api.tuition.update({ ...data, id: fee.id }); showToast('Tuition updated'); }
-      else { await api.tuition.create(data); showToast('Tuition added'); }
-      onSave();
+      if (fee) await api.tuition.update({ ...data, id: fee.id });
+      else await api.tuition.create(data);
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="space-y-4">
+    <FormSheet title={fee ? 'Edit tuition' : 'Add tuition'} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
       <div>
         <label className="label mb-1.5 block">Name</label>
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="e.g. 2026–2027 academic year, Fall semester…" autoFocus />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label mb-1.5 block">Total Fee</label>
+          <label className="label mb-1.5 block">Total</label>
           <MoneyInput value={total} onChange={e => setTotal(e.target.value)} />
         </div>
         <div>
-          <label className="label mb-1.5 block">Due Date (optional)</label>
+          <label className="label mb-1.5 block">Due date</label>
           <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="input" />
         </div>
       </div>
       <div>
-        <label className="label mb-1.5 block">Notes</label>
-        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="University, contract number…" />
+        <label className="label mb-1.5 block">Note</label>
+        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="University, contract number" />
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : fee ? 'Update Tuition' : 'Add Tuition'}
-        </button>
-      </div>
-    </div>
+    </FormSheet>
   );
 }
 
-function PaymentForm({ fee, onSave, onCancel }: { fee: TuitionFee; onSave: () => void; onCancel: () => void }) {
+function PaymentForm({ fee, onSaved, onClose }: { fee: TuitionFee; onSaved: () => void; onClose: () => void }) {
   const { accounts, showToast } = useAppStore();
   const remaining = Math.max(0, fee.total_amount - fee.paid);
   const [amount, setAmount] = useState(remaining > 0 ? remaining.toString() : '');
@@ -72,30 +69,32 @@ function PaymentForm({ fee, onSave, onCancel }: { fee: TuitionFee; onSave: () =>
   const [method, setMethod] = useState('bank transfer');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ amount, accountId, date, method, notes });
 
   const handleSave = async () => {
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return showToast('Enter a valid amount', 'error');
-    if (!accountId) return showToast('Select an account', 'error');
+    if (!amt || amt <= 0) return showToast('Enter an amount', 'error');
+    if (!accountId) return showToast('Pick an account', 'error');
     setSaving(true);
     try {
       await api.tuition.pay({ tuition_id: fee.id, account_id: accountId, amount: amt, date, notes, payment_method: method });
-      showToast('Payment recorded');
-      onSave();
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="space-y-4">
+    <FormSheet title={`Pay ${fee.name}`} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
       <div>
         <label className="label mb-1.5 block">Amount</label>
         <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} min="0" step="0.01" autoFocus />
-        <p className="text-xs text-[hsl(var(--text-muted))] mt-1">{formatCurrency(remaining)} still to pay</p>
+        <p className="text-xs text-[hsl(var(--text-muted))] mt-1">{formatCurrency(remaining)} left · counts as an Education expense</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label mb-1.5 block">Paid From</label>
+          <label className="label mb-1.5 block">From</label>
           <select value={accountId} onChange={e => setAccountId(e.target.value)} className="input">
             {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
@@ -107,24 +106,17 @@ function PaymentForm({ fee, onSave, onCancel }: { fee: TuitionFee; onSave: () =>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label mb-1.5 block">Payment Method</label>
-          <select value={method} onChange={e => setMethod(e.target.value)} className="input capitalize">
-            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+          <label className="label mb-1.5 block">Payment method</label>
+          <select value={method} onChange={e => setMethod(e.target.value)} className="input">
+            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{methodLabel(m)}</option>)}
           </select>
         </div>
         <div>
-          <label className="label mb-1.5 block">Notes</label>
-          <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="e.g. 2nd installment" />
+          <label className="label mb-1.5 block">Note</label>
+          <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="2nd installment" />
         </div>
       </div>
-      <p className="text-xs text-[hsl(var(--text-muted))]">Saved as an Education expense, so it comes out of the account's balance.</p>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : 'Record Payment'}
-        </button>
-      </div>
-    </div>
+    </FormSheet>
   );
 }
 
@@ -324,23 +316,18 @@ export function Tuition() {
         </div>
       </div>
 
-      <Modal open={showForm} onClose={() => { setShowForm(false); setEditFee(undefined); }} title={editFee ? 'Edit Tuition' : 'Add Tuition'} size="sm">
+      {showForm && (
         <TuitionForm
+          key={editFee?.id ?? 'new'}
           fee={editFee}
-          onSave={() => { setShowForm(false); setEditFee(undefined); fetchTuition(); }}
-          onCancel={() => { setShowForm(false); setEditFee(undefined); }}
+          onSaved={fetchTuition}
+          onClose={() => { setShowForm(false); setEditFee(undefined); }}
         />
-      </Modal>
+      )}
 
-      <Modal open={!!payFee} onClose={() => setPayFee(undefined)} title={payFee ? `Pay · ${payFee.name}` : 'Record Payment'} size="sm">
-        {payFee && (
-          <PaymentForm
-            fee={payFee}
-            onSave={() => { setPayFee(undefined); refreshAfterPayment(); }}
-            onCancel={() => setPayFee(undefined)}
-          />
-        )}
-      </Modal>
+      {payFee && (
+        <PaymentForm key={payFee.id} fee={payFee} onSaved={refreshAfterPayment} onClose={() => setPayFee(undefined)} />
+      )}
 
       <Modal open={!!deleteFee} onClose={() => setDeleteFee(undefined)} title="Delete Tuition" size="sm"
         footer={<><button onClick={() => setDeleteFee(undefined)} className="btn-secondary">Cancel</button><button onClick={handleDeleteFee} className="btn-danger">Delete</button></>}

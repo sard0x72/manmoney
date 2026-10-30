@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   Account, Category, Transaction, Budget, SavingsGoal,
   RecurringTransaction, DashboardData, SpendingByCategory, DailySpending,
-  TuitionFee, TuitionPayment, Loan, LoanRepayment
+  TuitionFee, TuitionPayment, Loan, LoanRepayment, Stats, AccountUsage
 } from '../types';
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
@@ -29,6 +29,9 @@ export const api = {
       }),
     setCurrency: (currency: string) => invoke<void>('set_accounts_currency', { currency }),
     delete: (id: string) => invoke<void>('delete_account', { id }),
+    usage: () => invoke<AccountUsage[]>('get_account_usage'),
+    /** Moves everything from one account into another, then deletes the first. */
+    merge: (fromId: string, toId: string) => invoke<void>('merge_account', { fromId, toId }),
   },
 
   categories: {
@@ -246,7 +249,24 @@ export const api = {
         startDate: data.start_date,
         endDate: data.end_date,
       }),
+    update: (data: Omit<RecurringTransaction, 'next_date' | 'is_active' | 'category_name' | 'account_name'>) =>
+      invoke<void>('update_recurring_transaction', {
+        id: data.id,
+        accountId: data.account_id,
+        categoryId: data.category_id,
+        transactionType: data.transaction_type,
+        amount: data.amount,
+        payee: data.payee,
+        notes: data.notes,
+        paymentMethod: data.payment_method,
+        frequency: data.frequency,
+        startDate: data.start_date,
+        endDate: data.end_date,
+      }),
+    setActive: (id: string, active: boolean) => invoke<void>('set_recurring_active', { id, active }),
     delete: (id: string) => invoke<void>('delete_recurring_transaction', { id }),
+    /** Adds the transactions that fell due up to `today`; resolves to how many were added. */
+    process: (today: string) => invoke<number>('process_recurring', { today }),
   },
 
   analytics: {
@@ -267,5 +287,11 @@ export const api = {
   export: {
     csv: () => invoke<string>('export_transactions_csv'),
     dbPath: () => invoke<string>('get_db_path'),
+    /** Every table, every row, as JSON text. */
+    backup: () => invoke<string>('export_backup'),
+    /** Replaces all data with a backup; the current database is copied aside first. */
+    restore: (json: string) => invoke<void>('import_backup', { json }),
   },
+
+  stats: () => invoke<Stats>('get_stats'),
 };

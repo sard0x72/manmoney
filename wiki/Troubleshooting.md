@@ -53,9 +53,20 @@ Balances are calculated entirely from transactions, so the fix is always in the 
 
 Edit the offending transaction — the app reverses its old effect and applies the corrected one. See [[Transactions]].
 
-## A category won't delete
+## A category or account won't delete
 
-You can only delete **custom** categories that have **no transactions**. Default categories can't be deleted at all. If a custom category has transactions, reassign those transactions to another category first, then delete it. See [[Categories]].
+A category can be deleted only if it's one of your own and no transactions, budgets or recurring entries use it. Built-in categories can't be deleted at all. The message says what still uses it; move those entries to another category first. See [[Categories]].
+
+An account can be deleted only if nothing uses it. Use **Move everything to…** in its menu to move its entries and balance into another account; that deletes it for you. See [[Accounts]].
+
+## I restored the wrong backup
+
+Before a restore, ManMoney saves your previous data as `manmoney-before-restore-<date>-<time>.db`, in the same folder as `manmoney.db` (click **Show path** in [[Settings and Data]] to find it). To go back:
+
+1. Close ManMoney.
+2. Rename `manmoney.db` to something else, for example `manmoney-restored.db`.
+3. Rename the `manmoney-before-restore-…` file to `manmoney.db`.
+4. Open ManMoney again.
 
 ## The first run is slow
 
@@ -63,7 +74,7 @@ The first `npm run tauri dev` compiles the Rust backend, which takes a while. Th
 
 ## I can't find my data / I want to back it up
 
-Your entire dataset is the `manmoney.db` SQLite file. Open [[Settings and Data]] and click **Show Path** to see exactly where it is. Copy that file to back up; restore by putting it back. You can also export CSV, Excel, or JSON from the same page.
+Your entire dataset is the `manmoney.db` SQLite file. Open [[Settings and Data]] and click **Show Path** to see exactly where it is. Copy that file to back up; restore by putting it back. The same page also has **Backup** and **Restore from backup**, which do this for you with a single file.
 
 ## Build prerequisites are missing
 
