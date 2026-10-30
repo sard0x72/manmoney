@@ -38,6 +38,10 @@ export interface Transaction {
   category_color?: string;
   category_icon?: string;
   account_name?: string;
+  /** Set when the transaction is a payment toward a tuition fee. */
+  tuition_id?: string;
+  /** The friend, when the transaction is your share of a bill split with them. */
+  linked_person?: string;
 }
 
 export interface Budget {

@@ -9,6 +9,7 @@ import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { RowMenu } from '../ui/RowMenu';
+import { SummaryBar } from '../ui/SummaryBar';
 import { PageHeader } from '../layout/PageHeader';
 import type { Budget } from '../../types';
 
@@ -100,18 +101,9 @@ export function Budgets() {
     </div>
   );
 
-  const lead = budgets.length > 0
-    ? `${formatCurrency(totalSpent)} spent of ${formatCurrency(totalLimit)}. ${formatCurrency(Math.abs(left))} ${left >= 0 ? 'still to spend' : 'over plan'}.`
-    : undefined;
-
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <PageHeader
-        eyebrow={`${monthName(budgetMonth)} envelopes`}
-        title="Budgets"
-        lead={lead}
-        actions={monthActions}
-      />
+      <PageHeader title="Budgets" actions={monthActions} />
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ maxWidth: 760, margin: '0 auto', padding: 'calc(36px * var(--v-rhythm)) var(--content-h-pad) 56px' }}>
@@ -123,6 +115,12 @@ export function Budgets() {
               action={<button onClick={() => setForm({})} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add budget</button>}
             />
           ) : (
+            <>
+            <SummaryBar items={[
+              { label: 'Spent', value: totalSpent },
+              { label: 'Budget', value: totalLimit },
+              left < 0 ? { label: 'Over', value: -left, tone: 'negative' } : { label: 'Left', value: left },
+            ]} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {budgets.map(b => {
                 const pct = b.amount > 0 ? Math.min(100, ((b.spent ?? 0) / b.amount) * 100) : 0;
@@ -148,7 +146,7 @@ export function Budgets() {
                         </div>
                         <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: over ? 'var(--negative)' : 'var(--ink-faint)' }}>
                           {over
-                            ? `${formatCurrency(-remaining)} over budget`
+                            ? `${formatCurrency(-remaining)} over`
                             : `${formatCurrency(remaining)} left`}
                         </div>
                       </div>
@@ -174,6 +172,7 @@ export function Budgets() {
                 );
               })}
             </div>
+            </>
           )}
         </div>
       </div>

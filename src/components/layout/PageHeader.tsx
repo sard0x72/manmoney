@@ -1,11 +1,11 @@
 interface PageHeaderProps {
+  /** Only the Dashboard uses this, for today's date. Other pages have no label above the title. */
   eyebrow?: string;
   title: string;
-  lead?: string;
   actions?: React.ReactNode;
 }
 
-export function PageHeader({ eyebrow, title, lead, actions }: PageHeaderProps) {
+export function PageHeader({ eyebrow, title, actions }: PageHeaderProps) {
   return (
     <header style={{
       display: 'flex',
@@ -30,21 +30,9 @@ export function PageHeader({ eyebrow, title, lead, actions }: PageHeaderProps) {
         }}>
           {title}
         </h1>
-        {lead && (
-          <p style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: 16,
-            color: 'var(--ink-muted)',
-            marginTop: 6,
-            maxWidth: 520,
-            lineHeight: 1.5,
-          }}>
-            {lead}
-          </p>
-        )}
       </div>
       {actions && (
-        <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {actions}
         </div>
       )}

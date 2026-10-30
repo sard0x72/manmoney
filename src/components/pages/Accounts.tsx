@@ -8,6 +8,8 @@ import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { RowMenu } from '../ui/RowMenu';
+import { SummaryBar } from '../ui/SummaryBar';
+import { friendTotals } from '../../lib/friends';
 import { PageHeader } from '../layout/PageHeader';
 import type { Account, AccountUsage } from '../../types';
 
@@ -133,7 +135,7 @@ function MergeAccountForm({ from, usage, onSaved, onClose }: { from: Account; us
 }
 
 export function Accounts() {
-  const { accounts: all, fetchAccounts, fetchDashboard, pendingDeletes, deleteWithUndo } = useAppStore();
+  const { accounts: all, loans, fetchAccounts, fetchDashboard, pendingDeletes, deleteWithUndo } = useAppStore();
   const accounts = all.filter(a => !pendingDeletes.has(a.id));
   const [showForm, setShowForm] = useState(false);
   const [editAcct, setEditAcct] = useState<Account | undefined>();
@@ -156,14 +158,14 @@ export function Accounts() {
   const openEdit = (a?: Account) => { setEditAcct(a); setShowForm(true); };
   useAddRequest('accounts', () => openEdit());
 
-  const net = accounts.reduce((s, a) => s + a.balance, 0);
-  const assets = accounts.filter(a => a.balance >= 0).reduce((s, a) => s + a.balance, 0);
-  const debts = accounts.filter(a => a.balance < 0).reduce((s, a) => s + a.balance, 0);
+  // Net worth counts what friends owe you and what you owe them, not just account balances.
+  const inAccounts = accounts.reduce((s, a) => s + a.balance, 0);
+  const { owedToYou, youOwe } = friendTotals(loans);
+  const netWorth = inAccounts + owedToYou - youOwe;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <PageHeader
-        eyebrow="Where it lives"
         title="Accounts"
         actions={
           <button onClick={() => openEdit()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -183,35 +185,15 @@ export function Accounts() {
             />
           ) : (
             <>
-              {/* Net worth header */}
-              <div style={{ display: 'flex', gap: 48, paddingBottom: 28, borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
-                <div>
-                  <div className="mm-eyebrow" style={{ marginBottom: 10 }}>Net worth</div>
-                  <div style={{
-                    fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
-                    fontSize: 32, fontWeight: 500, color: 'var(--ink-strong)',
-                  }}>
-                    {formatCurrency(net)}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 36, alignItems: 'flex-end', paddingBottom: 4 }}>
-                  <div>
-                    <div className="mm-eyebrow" style={{ marginBottom: 8 }}>Assets</div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 19, fontWeight: 500, color: 'var(--positive)' }}>
-                      {formatCurrency(assets)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mm-eyebrow" style={{ marginBottom: 8 }}>Debts</div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 19, fontWeight: 500, color: 'var(--ink)' }}>
-                      {formatCurrency(Math.abs(debts))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <SummaryBar items={[
+                { label: 'Net worth', value: netWorth, tone: netWorth < 0 ? 'negative' : 'neutral' },
+                { label: 'In accounts', value: inAccounts },
+                ...(owedToYou > 0.005 ? [{ label: 'Friends owe you', value: owedToYou, tone: 'positive' as const, sign: true }] : []),
+                ...(youOwe > 0.005 ? [{ label: 'You owe friends', value: -youOwe, sign: true }] : []),
+              ]} />
 
               {/* Account rows */}
-              <div style={{ marginTop: 12 }}>
+              <div style={{ borderTop: '1px solid var(--line)' }}>
                 {accounts.map(a => {
                   const Icon = TYPE_ICONS[a.account_type] ?? Wallet;
                   const neg = a.balance < 0;

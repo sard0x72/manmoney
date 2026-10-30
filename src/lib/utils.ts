@@ -29,10 +29,28 @@ export function currencySymbol(currency = appCurrency): string {
     .formatToParts(0).find(p => p.type === 'currency')?.value ?? currency;
 }
 
+// "Oct 30" this year, "Oct 30, 2025" any other year.
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '';
   const date = new Date(dateStr + 'T00:00:00');
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) }).format(date);
+}
+
+/** For list group headers: "Today", "Yesterday", otherwise formatDate. */
+export function formatDay(dateStr: string): string {
+  const today = todayISO();
+  if (dateStr === today) return 'Today';
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
+  if (dateStr === localISO(y)) return 'Yesterday';
+  return formatDate(dateStr);
+}
+
+/** "Mar 2027": for target dates where the day doesn't matter. */
+export function formatMonthYear(dateStr: string): string {
+  if (!dateStr) return '';
+  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(dateStr + 'T00:00:00'));
 }
 
 export function formatDateShort(dateStr: string): string {
@@ -44,8 +62,16 @@ export function formatDateShort(dateStr: string): string {
 // Local calendar date as YYYY-MM-DD. toISOString() would give the UTC date,
 // which is a day behind for the first hours of the day east of UTC (e.g. UZT+5).
 export function todayISO(): string {
-  const d = new Date();
+  return localISO(new Date());
+}
+
+export function localISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** "+$12" / "−$12": the sign spelled out, with a real minus sign. */
+export function formatSigned(amount: number): string {
+  return `${amount < 0 ? '−' : '+'}${formatCurrency(Math.abs(amount))}`;
 }
 
 export function currentYear(): number {

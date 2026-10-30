@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Wallet, PieChart, Plus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, PieChart, Plus, Minus, HandCoins } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
-import { formatCurrency, formatDateShort, getMonthDateRange, currentYear, currentMonth } from '../../lib/utils';
+import { formatCurrency, formatDate, formatDateShort, getMonthDateRange, currentYear, currentMonth } from '../../lib/utils';
+import { friendTotals } from '../../lib/friends';
 import { CategoryIcon } from '../ui/CategoryIcon';
-import type { DailySpending, SpendingByCategory } from '../../types';
+import { PageHeader } from '../layout/PageHeader';
+import { TransactionForm } from '../forms/TransactionForm';
+import type { DailySpending, SpendingByCategory, Transaction } from '../../types';
 
 /* Hand-built SVG cash-flow chart — income (sage) over expenses (faint ink) */
 function FlowChart({ data, height = 168 }: { data: DailySpending[]; height?: number }) {
@@ -77,11 +80,12 @@ function Chip({ color, icon }: { color: string; icon: React.ReactNode }) {
 }
 
 /* Amount display */
+/* Spending is plain ink; red is kept for problems, like a balance below zero. */
 function Amount({ value, type = 'plain', size = 'lg', showSign = false }: {
-  value: number; type?: 'income' | 'expense' | 'plain'; size?: 'sm' | 'md' | 'lg'; showSign?: boolean;
+  value: number; type?: 'income' | 'expense' | 'plain' | 'problem'; size?: 'sm' | 'md' | 'lg'; showSign?: boolean;
 }) {
   const sizes = { sm: 14, md: 17, lg: 24 };
-  const color = type === 'income' ? 'var(--positive)' : type === 'expense' ? 'var(--negative)' : 'var(--ink-strong)';
+  const color = type === 'income' ? 'var(--positive)' : type === 'problem' ? 'var(--negative)' : type === 'expense' ? 'var(--ink)' : 'var(--ink-strong)';
   const prefix = showSign ? (type === 'income' ? '+' : type === 'expense' ? '−' : '') : '';
   return (
     <span style={{
@@ -111,90 +115,115 @@ function ProgressBar({ label, meta, value, max, color }: {
   );
 }
 
+/* A large, equal-width action button for the quick-actions row */
+function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="mm-card hover:shadow-card-hover"
+      style={{
+        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 12px',
+        cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)',
+        transition: 'box-shadow var(--dur-fast)',
+      }}>
+      <span style={{
+        width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--clay-tint)', color: 'var(--clay-ink)',
+      }}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
 export function Dashboard() {
-  const { dashboard, transactions, fetchDashboard, fetchTransactions, setPage, openQuickAdd, dataVersion } = useAppStore();
+  const { dashboard, loans, fetchDashboard, setPage, openQuickAdd, dataVersion } = useAppStore();
   const [daily, setDaily] = useState<DailySpending[]>([]);
   const [byCat, setByCat] = useState<SpendingByCategory[]>([]);
+  // Its own short list: the store's transactions back other pages and the forms' category ranking.
+  const [recent, setRecent] = useState<Transaction[]>([]);
+  const [editTx, setEditTx] = useState<Transaction | undefined>();
 
-  useEffect(() => {
+  const load = () => {
     fetchDashboard();
-    fetchTransactions({ limit: 5 });
+    api.transactions.list({ limit: 5 }).then(setRecent).catch(e => console.error('recent', e));
     const { from, to } = getMonthDateRange(currentYear(), currentMonth());
     api.analytics.daily(from, to).then(setDaily);
     api.analytics.byCategory(from, to, 'expense').then(d => setByCat(d.slice(0, 4)));
-  }, [dataVersion]);
+  };
+  useEffect(load, [dataVersion]);
 
   const d = dashboard;
   const budgetPct = d && d.month_budget_total > 0
     ? (d.month_budget_spent / d.month_budget_total) * 100
     : 0;
+  const { owedToYou, youOwe } = friendTotals(loans);
+  const hasFriends = owedToYou > 0.005 || youOwe > 0.005;
 
-  const recent = transactions.slice(0, 5);
   const now = new Date();
-  const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
-  const dateStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  // Today is always this year, so no year: "Friday · October 30".
+  const dateLine = `${now.toLocaleDateString('en-US', { weekday: 'long' })} · ${now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`;
 
   const stats = [
-    { label: 'Total balance',  value: d?.total_balance ?? 0,   icon: <Wallet size={14} />,     color: 'var(--cat-slate)', sub: 'Across all accounts' },
-    { label: 'Income',         value: d?.month_income ?? 0,    icon: <TrendingUp size={14} />,  color: 'var(--cat-sage)',  sub: 'This month' },
-    { label: 'Expenses',       value: d?.month_expenses ?? 0,  icon: <TrendingDown size={14} />,color: 'var(--cat-clay)',  sub: 'This month' },
+    { label: 'Balance',           value: d?.total_balance ?? 0,  icon: <Wallet size={14} />,       color: 'var(--cat-slate)', type: (d?.total_balance ?? 0) < 0 ? 'problem' as const : 'plain' as const },
+    { label: 'Spent this month',  value: d?.month_expenses ?? 0, icon: <TrendingDown size={14} />, color: 'var(--cat-clay)',  type: 'expense' as const },
+    { label: 'Earned this month', value: d?.month_income ?? 0,   icon: <TrendingUp size={14} />,   color: 'var(--cat-sage)',  type: 'income' as const },
   ];
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: 'var(--paper)' }}>
-      {/* Editorial header */}
-      <header style={{
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-        gap: 24, padding: 'calc(36px * var(--v-rhythm)) var(--content-h-pad) 0',
-      }}>
-        <div>
-          <div className="mm-eyebrow" style={{ marginBottom: 8 }}>{dayName} · {dateStr}</div>
-          <h1 style={{
-            fontFamily: 'var(--font-serif)', fontSize: 30, fontWeight: 600,
-            color: 'var(--ink-strong)', letterSpacing: '-0.02em',
-          }}>
-            Dashboard
-          </h1>
-        </div>
-        <button
-          onClick={() => openQuickAdd('transaction')}
-          className="btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: 7 }}
-        >
-          <Plus size={15} /> Add transaction
-        </button>
-      </header>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <PageHeader eyebrow={dateLine} title="Dashboard" />
 
-      <div style={{ maxWidth: 'var(--content-max)', padding: 'calc(28px * var(--v-rhythm)) var(--content-h-pad) calc(64px * var(--v-rhythm))' }}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ maxWidth: 'var(--content-max)', padding: 'calc(24px * var(--v-rhythm)) var(--content-h-pad) calc(64px * var(--v-rhythm))' }}>
+        {/* Quick actions */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+          <QuickAction icon={<Minus size={16} />} label="Expense" onClick={() => openQuickAdd('expense')} />
+          <QuickAction icon={<Plus size={16} />} label="Income" onClick={() => openQuickAdd('income')} />
+          <QuickAction icon={<HandCoins size={16} />} label="Friend" onClick={() => openQuickAdd('friend')} />
+        </div>
+
         {/* Stat cards */}
-        <div className="dash-stat-grid">
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${hasFriends ? 190 : 220}px, 1fr))`, gap: 16 }}>
           {stats.map(s => (
             <div key={s.label} className="mm-card" style={{ padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <span className="mm-eyebrow">{s.label}</span>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-muted)' }}>{s.label}</span>
                 <Chip color={s.color} icon={s.icon} />
               </div>
-              <div style={{ marginTop: 16 }}>
-                <Amount value={s.value} size="lg" type={s.value < 0 ? 'expense' : 'plain'} />
-              </div>
-              <div style={{
-                marginTop: 6, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-faint)',
-              }}>
-                {s.sub}
+              <div style={{ marginTop: 12 }}>
+                <Amount value={s.value} size="lg" type={s.type} />
               </div>
             </div>
           ))}
+          {hasFriends && (
+            <button onClick={() => setPage('loans')} className="mm-card hover:shadow-card-hover"
+              style={{ padding: 18, textAlign: 'left', cursor: 'pointer', transition: 'box-shadow var(--dur-fast)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-muted)' }}>Friends</span>
+                <Chip color="var(--clay)" icon={<HandCoins size={14} />} />
+              </div>
+              <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap' }}>
+                {owedToYou > 0.005 && (
+                  <div>
+                    <Amount value={owedToYou} size="md" type="income" showSign />
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-faint)' }}>owe you</div>
+                  </div>
+                )}
+                {youOwe > 0.005 && (
+                  <div>
+                    <Amount value={youOwe} size="md" type="expense" showSign />
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-faint)' }}>you owe</div>
+                  </div>
+                )}
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Cash flow + This month */}
         <div className="dash-main-grid">
-          {/* Cash flow chart */}
           <div className="mm-card" style={{ padding: 24 }}>
             <div className="mm-card-header">
               <span className="mm-card-title">Cash flow</span>
-              <span className="mm-card-aside">
-                {now.toLocaleDateString('en-US', { month: 'long' })}, day by day
-              </span>
+              <span className="mm-card-aside">{now.toLocaleDateString('en-US', { month: 'long' })}</span>
             </div>
             <FlowChart data={daily} height={168} />
             <div style={{
@@ -211,30 +240,24 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* This month ring */}
           <div className="mm-card" style={{ padding: 24, display: 'flex', flexDirection: 'column' }}>
             <div className="mm-card-header">
-              <span className="mm-card-title">This month</span>
+              <span className="mm-card-title">Budget</span>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 0 4px' }}>
               {d && d.month_budget_total > 0 ? (
                 <>
                   <DashRing pct={budgetPct} />
-                  <div style={{ marginTop: 14, textAlign: 'center' }}>
-                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-muted)' }}>Budget used</div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', marginTop: 2 }}>
-                      {formatCurrency(d.month_budget_spent)} / {formatCurrency(d.month_budget_total)}
-                    </div>
+                  <div style={{ marginTop: 14, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)' }}>
+                    {formatCurrency(d.month_budget_spent)} / {formatCurrency(d.month_budget_total)}
                   </div>
                 </>
               ) : (
                 <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                   <span style={{ color: 'var(--ink-faint)', display: 'flex' }}><PieChart size={26} /></span>
-                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-muted)' }}>
-                    No budget set for this month
-                  </div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-muted)' }}>No budget this month</div>
                   <button onClick={() => setPage('budgets')} className="btn-secondary" style={{ fontSize: 13, padding: '6px 12px' }}>
-                    Set a budget
+                    Add budget
                   </button>
                 </div>
               )}
@@ -244,57 +267,49 @@ export function Dashboard() {
 
         {/* Recent activity + Top spending */}
         <div className="dash-bottom-grid">
-          {/* Recent activity */}
           <div className="mm-card" style={{ padding: 24 }}>
             <div className="mm-card-header">
               <span className="mm-card-title">Recent activity</span>
+              {recent.length > 0 && (
+                <button onClick={() => setPage('transactions')} style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                  fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 500, color: 'var(--clay-ink)',
+                }}>See all</button>
+              )}
             </div>
-            {recent.length > 0 ? (
-              <div>
-                {recent.map((t, i) => (
-                  <div key={t.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 0',
-                    borderBottom: i < recent.length - 1 ? '1px solid var(--line)' : 'none',
+            {recent.length > 0 ? recent.map((t, i) => {
+              const primary = t.payee || t.notes || t.category_name || '';
+              // The category is shown once: as the title when there's nothing better, otherwise underneath.
+              const secondary = [primary !== t.category_name ? t.category_name : '', formatDate(t.date)].filter(Boolean).join(' · ');
+              return (
+                <button key={t.id} onClick={() => setEditTx(t)} className="hover:bg-[var(--surface-2)]" style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px', textAlign: 'left',
+                  background: 'none', border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                  borderBottom: i < recent.length - 1 ? '1px solid var(--line)' : 'none',
+                }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                    background: `${t.category_color ?? '#5B6675'}20`, color: t.category_color ?? 'var(--cat-slate)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                      background: `${t.category_color ?? 'var(--cat-slate)'}20`,
-                      color: t.category_color ?? 'var(--cat-slate)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <CategoryIcon icon={t.category_icon ?? 'tag'} size={14} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {t.payee || t.category_name}
-                      </div>
-                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-faint)' }}>
-                        {t.category_name}
-                      </div>
-                    </div>
-                    <Amount value={t.amount} type={t.transaction_type === 'income' ? 'income' : 'expense'} size="sm" showSign />
+                    <CategoryIcon icon={t.category_icon ?? 'tag'} size={14} />
                   </div>
-                ))}
-                <button
-                  onClick={() => setPage('transactions')}
-                  style={{
-                    marginTop: 12, background: 'none', border: 'none', cursor: 'pointer',
-                    fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
-                    color: 'var(--clay-ink)', padding: 0,
-                  }}
-                >
-                  All transactions →
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {primary}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-faint)' }}>{secondary}</div>
+                  </div>
+                  <Amount value={t.amount} type={t.transaction_type === 'income' ? 'income' : 'expense'} size="sm" showSign />
                 </button>
-              </div>
-            ) : (
+              );
+            }) : (
               <div style={{ textAlign: 'center', padding: '24px 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-faint)' }}>
                 No transactions yet
               </div>
             )}
           </div>
 
-          {/* Top spending */}
           <div className="mm-card" style={{ padding: 24 }}>
             <div className="mm-card-header">
               <span className="mm-card-title">Top spending</span>
@@ -303,24 +318,21 @@ export function Dashboard() {
             {byCat.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 2 }}>
                 {byCat.map(c => (
-                  <ProgressBar
-                    key={c.category_id}
-                    label={c.category_name}
-                    meta={formatCurrency(c.amount)}
-                    value={c.amount}
-                    max={byCat[0].amount}
-                    color={c.category_color ?? 'var(--clay)'}
-                  />
+                  <ProgressBar key={c.category_id} label={c.category_name} meta={formatCurrency(c.amount)}
+                    value={c.amount} max={byCat[0].amount} color={c.category_color ?? 'var(--clay)'} />
                 ))}
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '24px 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-faint)' }}>
-                No expenses this month
+                No spending this month
               </div>
             )}
           </div>
         </div>
       </div>
+      </div>
+
+      {editTx && <TransactionForm key={editTx.id} tx={editTx} onSaved={load} onClose={() => setEditTx(undefined)} />}
     </div>
   );
 }

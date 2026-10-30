@@ -1,41 +1,38 @@
-# Savings Goals
+# Goals
 
-A savings goal is something you're putting money aside for — an emergency fund, a new laptop, a trip. The Goals page lets you set a target and watch your progress toward it.
+A goal is something you're putting money aside for: an emergency fund, a new laptop, a trip. Set a target and watch your progress toward it.
 
-## What a goal holds
+## Adding a goal
 
-- A **name** for what you're saving toward.
-- A **target amount** — the number you're aiming for.
-- An **amount already saved** — how much you've put aside so far.
-- An optional **deadline** if the goal is time-bound.
-- A **color** and notes to keep it personal.
+Click **Add goal** and fill in:
 
-## Creating a goal
+- **Name**: what you're saving toward.
+- **Target**: the amount you're aiming for.
+- **Already saved**: what you've put aside so far, if anything.
+- **Color**.
+- **More options**: a **Target date** and a note.
 
-Click *New Goal*, give it a name and a target, and optionally set how much you've already saved and a target date. Both the target and the saved amount are yours to set directly.
+## Adding money
 
-## Tracking progress
+Click **Add money** on a goal's card and enter the amount. To take some back out, choose **Take out** in the same form, or in the card's **⋯** menu. The saved amount never goes below zero.
 
-Each goal shows up as a card with:
+Goals don't move money between accounts. They're a deliberate tracker: when you move money into savings in real life, add it to the goal here.
 
-- A **progress ring** and a percentage.
-- Your **saved** and **target** amounts side by side.
-- The **remaining** amount, or an "Achieved" note once you hit 100%.
-- A linear progress bar that turns green when complete.
+## Reading a card
 
-The header summarizes all goals together: total saved across every goal, out of the combined target.
+- The line under the name says how much is **to go**, and the target date if there is one: "$2,100 to go · by Mar 2027". A goal you've reached shows **Reached**.
+- The amount saved, out of the target, with one progress bar.
 
-## Keeping goals current
+At the top of the page, **Saved** and **Target** add up all your goals.
 
-Goals don't update themselves from your transactions — they're a deliberate, manual tracker. When you move money into savings, edit the goal and bump its saved amount. This keeps goals separate from your day-to-day account balances, which is usually what you want: your "saved so far" reflects your intent, not just whatever happens to be sitting in an account.
+## Editing and deleting
 
-Edit and delete a goal from the **⋯** menu on its card. A deleted goal can be brought back with **Undo** for 6 seconds.
+Edit and delete a goal from the **⋯** menu on its card. Editing changes the name, target, color, date and note; the saved amount changes through **Add money** and **Take out**. A deleted goal can be brought back with **Undo** for 6 seconds.
 
 ## Tips
 
-- Set a **deadline** for goals with a date attached (a trip, a tax bill) so the urgency is visible.
-- When you save money in real life, bump the goal's saved amount here right away so the card reflects it.
-- Break a very large goal into a couple of smaller ones if a single giant target feels discouraging — steady progress on a smaller number is easier to sustain.
-- Use the notes field to record why the goal matters; it helps when you're deciding whether to dip into it.
+- Set a target date for goals tied to a date, like a trip or a tax bill.
+- Add money right after you save it in real life, so the card stays true.
+- Split a very large goal into smaller ones if a single big target feels discouraging.
 
 Related: [[Transactions]] · [[Accounts]] · [[Dashboard]]

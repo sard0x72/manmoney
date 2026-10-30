@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, GraduationCap, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, GraduationCap, ChevronRight, Check, CornerDownRight } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
+import { useAddRequest } from '../../lib/useAddRequest';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { RowMenu } from '../ui/RowMenu';
-import { useAddRequest } from '../../lib/useAddRequest';
 import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
+import { MoreOptions } from '../ui/MoreOptions';
+import { SummaryBar } from '../ui/SummaryBar';
+import { Pill } from '../ui/Pill';
 import { PageHeader } from '../layout/PageHeader';
 import { PAYMENT_METHODS, methodLabel } from '../forms/TransactionForm';
 import type { TuitionFee, TuitionPayment } from '../../types';
+
+const faint = { fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' } as const;
 
 function TuitionForm({ fee, onSaved, onClose }: { fee?: TuitionFee; onSaved: () => void; onClose: () => void }) {
   const { showToast } = useAppStore();
@@ -42,12 +47,12 @@ function TuitionForm({ fee, onSaved, onClose }: { fee?: TuitionFee; onSaved: () 
     <FormSheet title={fee ? 'Edit tuition' : 'Add tuition'} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
       <div>
         <label className="label mb-1.5 block">Name</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="e.g. 2026–2027 academic year, Fall semester…" autoFocus />
+        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="2026–2027 academic year, Fall semester" autoFocus />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label mb-1.5 block">Total</label>
-          <MoneyInput value={total} onChange={e => setTotal(e.target.value)} />
+          <MoneyInput value={total} onChange={e => setTotal(e.target.value)} min="0" step="0.01" />
         </div>
         <div>
           <label className="label mb-1.5 block">Due date</label>
@@ -92,36 +97,35 @@ function PaymentForm({ fee, onSaved, onClose }: { fee: TuitionFee; onSaved: () =
       <div>
         <label className="label mb-1.5 block">Amount</label>
         <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} min="0" step="0.01" autoFocus />
-        <p className="text-xs text-[hsl(var(--text-muted))] mt-1">{formatCurrency(remaining)} left · counts as an Education expense</p>
+        <p style={{ ...faint, marginTop: 6 }}>Counts as an Education expense</p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label mb-1.5 block">From</label>
-          <select value={accountId} onChange={e => setAccountId(e.target.value)} className="input">
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="label mb-1.5 block">Date</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input" />
-        </div>
+      <div>
+        <label className="label mb-1.5 block">From</label>
+        <select value={accountId} onChange={e => setAccountId(e.target.value)} className="input">
+          {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label mb-1.5 block">Payment method</label>
-          <select value={method} onChange={e => setMethod(e.target.value)} className="input">
-            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{methodLabel(m)}</option>)}
-          </select>
+      <MoreOptions>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label mb-1.5 block">Date</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input" />
+          </div>
+          <div>
+            <label className="label mb-1.5 block">Payment method</label>
+            <select value={method} onChange={e => setMethod(e.target.value)} className="input">
+              {PAYMENT_METHODS.map(m => <option key={m} value={m}>{methodLabel(m)}</option>)}
+            </select>
+          </div>
         </div>
         <div>
           <label className="label mb-1.5 block">Note</label>
           <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="2nd installment" />
         </div>
-      </div>
+      </MoreOptions>
     </FormSheet>
   );
 }
-
 
 function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
   fee: TuitionFee;
@@ -141,32 +145,26 @@ function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
 
   const pct = fee.total_amount > 0 ? Math.min(100, (fee.paid / fee.total_amount) * 100) : 0;
   const remaining = fee.total_amount - fee.paid;
-  const done = remaining <= 0;
+  const done = remaining <= 0.000001;
   const overdue = !done && !!fee.due_date && fee.due_date < todayISO();
+  const shown = payments.filter(p => !pendingDeletes.has(p.id));
 
   return (
-    <div className="mm-card" style={{ padding: 24, cursor: 'default' }}>
+    <div className="mm-card group" style={{ padding: 22 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 20, fontWeight: 600, color: 'var(--ink-strong)' }}>
-            {fee.name}
-          </h3>
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: overdue ? 'var(--negative)' : 'var(--ink-faint)', marginTop: 3 }}>
-            {fee.due_date ? `${overdue ? 'Overdue since' : 'Due'} ${formatDate(fee.due_date)}` : 'No due date'}
-            {fee.notes && <span style={{ color: 'var(--ink-faint)' }}> · {fee.notes}</span>}
-          </div>
+          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 20, fontWeight: 600, color: 'var(--ink-strong)' }}>{fee.name}</h3>
+          {done ? (
+            <div style={{ marginTop: 4 }}><Pill tone="positive" icon={<Check size={11} />}>Paid</Pill></div>
+          ) : fee.due_date && (
+            <div style={{ ...faint, marginTop: 3, color: overdue ? 'var(--negative)' : 'var(--ink-faint)' }}>
+              {overdue ? 'Overdue since' : 'Due'} {formatDate(fee.due_date)}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {done ? (
-            <span style={{
-              borderRadius: 999, padding: '3px 10px',
-              background: 'var(--positive-tint)', color: 'var(--positive)',
-              fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600,
-            }}>✓ Paid in full</span>
-          ) : (
-            <button onClick={onPay} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', fontSize: 13 }}>
-              <Plus size={13} /> Record payment
-            </button>
+          {!done && (
+            <button onClick={onPay} className="btn-primary" style={{ padding: '6px 14px', fontSize: 13 }}>Pay</button>
           )}
           <RowMenu items={[
             { label: 'Edit', icon: <Pencil size={13} />, onSelect: onEdit },
@@ -175,53 +173,32 @@ function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
         </div>
       </div>
 
-      {/* Paid vs. remaining */}
-      <div style={{ display: 'flex', gap: 40, marginTop: 22, flexWrap: 'wrap' }}>
-        <div>
-          <div className="mm-eyebrow" style={{ marginBottom: 6 }}>Paid</div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 500, color: 'var(--positive)' }}>
-            {formatCurrency(fee.paid)}
-          </div>
-        </div>
-        <div>
-          <div className="mm-eyebrow" style={{ marginBottom: 6 }}>{remaining < 0 ? 'Overpaid' : 'Left to pay'}</div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 500, color: done ? 'var(--ink-faint)' : 'var(--ink-strong)' }}>
-            {formatCurrency(Math.abs(remaining))}
-          </div>
-        </div>
-        <div>
-          <div className="mm-eyebrow" style={{ marginBottom: 6 }}>Total fee</div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 500, color: 'var(--ink-muted)' }}>
-            {formatCurrency(fee.total_amount)}
-          </div>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 18 }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 20, fontWeight: 500, color: 'var(--ink-strong)' }}>
+          {formatCurrency(fee.paid)}
+        </span>
+        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-faint)' }}>paid of {formatCurrency(fee.total_amount)}</span>
       </div>
-
-      <div style={{ marginTop: 16, height: 6, background: 'var(--paper-sunk)', borderRadius: 999, overflow: 'hidden' }}>
+      <div style={{ marginTop: 10, height: 6, background: 'var(--paper-sunk)', borderRadius: 999, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: done ? 'var(--positive)' : 'var(--clay)', borderRadius: 999, transition: 'width 700ms' }} />
       </div>
-      <div style={{ marginTop: 8, fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
-        {Math.round(pct)}% paid
-      </div>
+      {!done && <div style={{ ...faint, marginTop: 6 }}>{formatCurrency(remaining)} left</div>}
 
-      {/* Payment history */}
-      <button onClick={() => setOpen(o => !o)}
+      <button onClick={() => setOpen(o => !o)} aria-expanded={open}
         style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0,
           fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--ink-muted)' }}>
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Payment history
+        <ChevronRight size={14} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform var(--dur-fast)' }} /> Payments
       </button>
       {open && (
-        <div style={{ marginTop: 8 }}>
-          {payments.length === 0 ? (
-            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-faint)', padding: '6px 0' }}>No payments yet.</p>
-          ) : payments.filter(p => !pendingDeletes.has(p.id)).map(p => (
-            <div key={p.id} className="group" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderTop: '1px solid var(--line)' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--ink-muted)', width: 96, flexShrink: 0 }}>{formatDate(p.date)}</span>
-              <span style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.account_name ?? ''}{p.notes ? ` · ${p.notes}` : ''}
-              </span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>
-                {formatCurrency(p.amount)}
+        <div style={{ marginTop: 6 }}>
+          {shown.length === 0 ? (
+            <p style={{ ...faint, padding: '6px 0 0 18px' }}>No payments yet</p>
+          ) : shown.map(p => (
+            <div key={p.id} className="group" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 6px 4px' }}>
+              <CornerDownRight size={13} style={{ color: 'var(--ink-faint)', flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, ...faint, fontSize: 13, color: 'var(--ink-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Paid {formatCurrency(p.amount)}
+                <span style={{ color: 'var(--ink-faint)' }}> · {formatDate(p.date)}{p.account_name ? ` · ${p.account_name}` : ''}{p.notes ? ` · ${p.notes}` : ''}</span>
               </span>
               <RowMenu items={[{ label: 'Delete', icon: <Trash2 size={13} />, onSelect: () => onDeletePayment(p), danger: true }]} />
             </div>
@@ -234,12 +211,10 @@ function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
 
 export function Tuition() {
   const { tuition, fetchTuition, fetchAccounts, fetchDashboard, showToast, deleteWithUndo } = useAppStore();
-  const [showForm, setShowForm] = useState(false);
-  const [editFee, setEditFee] = useState<TuitionFee | undefined>();
+  const [form, setForm] = useState<{ fee?: TuitionFee } | null>(null);
   const [payFee, setPayFee] = useState<TuitionFee | undefined>();
   const [deleteFee, setDeleteFee] = useState<TuitionFee | undefined>();
-  const openForm = (f?: TuitionFee) => { setEditFee(f); setShowForm(true); };
-  useAddRequest('tuition', () => openForm());
+  useAddRequest('tuition', () => setForm({}));
 
   useEffect(() => { fetchTuition(); }, []);
 
@@ -261,63 +236,51 @@ export function Tuition() {
     commit: async () => { await api.transactions.delete(p.id); refreshAfterPayment(); },
   });
 
-  const totalFee = tuition.reduce((s, f) => s + f.total_amount, 0);
-  const totalPaid = tuition.reduce((s, f) => s + f.paid, 0);
-  const totalLeft = tuition.reduce((s, f) => s + Math.max(0, f.total_amount - f.paid), 0);
-
-  const lead = tuition.length > 0
-    ? `${formatCurrency(totalPaid)} paid of ${formatCurrency(totalFee)} — ${formatCurrency(totalLeft)} still to go.`
-    : undefined;
+  const total = tuition.reduce((s, f) => s + f.total_amount, 0);
+  const paid = tuition.reduce((s, f) => s + f.paid, 0);
+  const left = tuition.reduce((s, f) => s + Math.max(0, f.total_amount - f.paid), 0);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <PageHeader
-        eyebrow="Education"
         title="Tuition"
-        lead={lead}
         actions={
-          <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => setForm({})} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Plus size={15} /> Add tuition
           </button>
         }
       />
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth: 'var(--content-max)', margin: '0 auto', padding: 'calc(32px * var(--v-rhythm)) var(--content-h-pad) 56px' }}>
+        <div style={{ maxWidth: 820, margin: '0 auto', padding: 'calc(32px * var(--v-rhythm)) var(--content-h-pad) 56px' }}>
           {tuition.length === 0 ? (
             <EmptyState
               icon={<GraduationCap size={22} />}
               title="No tuition yet"
-              description="Add your tuition fee to track how much you've paid and how much is left."
-              action={<button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add tuition</button>}
+              description="Track what you've paid and what's left."
+              action={<button onClick={() => setForm({})} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add tuition</button>}
             />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {tuition.map(f => (
-                <TuitionCard key={f.id} fee={f}
-                  onEdit={() => openForm(f)}
-                  onDelete={() => setDeleteFee(f)}
-                  onPay={() => setPayFee(f)}
-                  onDeletePayment={handleDeletePayment}
-                />
-              ))}
-            </div>
+            <>
+              <SummaryBar items={[{ label: 'Paid', value: paid }, { label: 'Left', value: left }, { label: 'Total', value: total }]} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {tuition.map(f => (
+                  <TuitionCard key={f.id} fee={f}
+                    onEdit={() => setForm({ fee: f })}
+                    onDelete={() => setDeleteFee(f)}
+                    onPay={() => setPayFee(f)}
+                    onDeletePayment={handleDeletePayment}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {showForm && (
-        <TuitionForm
-          key={editFee?.id ?? 'new'}
-          fee={editFee}
-          onSaved={fetchTuition}
-          onClose={() => { setShowForm(false); setEditFee(undefined); }}
-        />
-      )}
+      {form && <TuitionForm key={form.fee?.id ?? 'new'} fee={form.fee} onSaved={fetchTuition} onClose={() => setForm(null)} />}
 
-      {payFee && (
-        <PaymentForm key={payFee.id} fee={payFee} onSaved={refreshAfterPayment} onClose={() => setPayFee(undefined)} />
-      )}
+      {payFee && <PaymentForm key={payFee.id} fee={payFee} onSaved={refreshAfterPayment} onClose={() => setPayFee(undefined)} />}
 
       {deleteFee && (
         <ConfirmDialog title="Delete tuition" onConfirm={handleDeleteFee} onClose={() => setDeleteFee(undefined)}

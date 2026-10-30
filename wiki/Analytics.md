@@ -1,40 +1,31 @@
 # Analytics
 
-Analytics is where you step back and look at your money over time. The Dashboard gives you the quick read; Analytics is for digging in. Pick a month and year at the top, and explore three tabs.
+Analytics is where you look at your money over time. The Dashboard gives you the quick read; Analytics shows the trend.
 
-## Choosing a period
+## The figures
 
-The month and year selectors in the header drive the Overview and Categories tabs. The Trends tab always looks at the last 12 months regardless of the selected month.
+Averages over the last 12 months:
 
-## Overview tab
+- **Avg earned / month**
+- **Avg spent / month**
+- **Kept of income**: the share of what you earned that you didn't spend. It's green when you kept some, and red when you spent more than you earned.
 
-A summary of the selected month:
+## Earned vs spent
 
-- **Total Income**, **Total Expenses**, and **Net Savings** cards.
-- A **daily cash flow** bar chart showing income and expenses for each day of the month, so you can spot the days money came in and went out.
-- A **breakdown of expenses by category**, as both a pie chart and a ranked list with each category's share of the total.
+Two bars per month for the last 12 months: green for what you earned, grey for what you spent. Hover over a month to see both amounts.
 
-## Trends tab
+## Where it went
 
-The long view across the last 12 months:
+This month's spending by category, largest first. Each bar and its percentage show the category's share of everything you spent this month, so the bars add up to 100%.
 
-- **Income vs Expenses** as an area chart, month by month, so you can see whether the gap between what you earn and what you spend is widening or narrowing.
-- **Monthly Savings** as a bar chart — each bar is that month's income minus expenses. Bars dip below the line and turn red in months you spent more than you earned.
+## Before you have data
 
-## Categories tab
-
-A side-by-side comparison for the selected month:
-
-- **Expense categories**, ranked, each showing the amount, the number of transactions, and its share of total spending.
-- **Income categories**, the same treatment for money coming in.
-
-This is the tab to use when you want to answer "what did I actually spend the most on?" or "where does my income really come from?"
+With no transactions yet, the page says **Nothing to show yet** and offers **Add transaction**.
 
 ## Tips
 
-- Use **Overview** for a monthly review ritual — pick last month, see where it went, adjust this month's [[Budgets]].
-- Use **Trends** to judge direction, not detail. A single expensive month isn't a problem; three months of red savings bars is a signal.
-- Use **Categories** transaction counts to tell apart "a few big purchases" from "lots of small ones" — same total, very different habits.
-- The numbers here are only as good as your records. If a month looks off, it usually means a transaction is miscategorized or missing — fix it in [[Transactions]].
+- Do a monthly review: see where last month went, then adjust this month's [[Budgets]].
+- Judge direction, not single months. One expensive month is noise; three months in a row of spending more than you earn is a signal.
+- The numbers are only as good as your records. If a month looks off, a transaction is usually missing or in the wrong category; fix it in [[Transactions]].
 
 Related: [[Dashboard]] · [[Transactions]] · [[Budgets]] · [[Categories]]

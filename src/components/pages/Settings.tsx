@@ -167,7 +167,7 @@ export function Settings() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <PageHeader eyebrow="Preferences" title="Settings" />
+      <PageHeader title="Settings" />
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ maxWidth: 'var(--prose-max)', padding: 'calc(36px * var(--v-rhythm)) var(--content-h-pad) calc(56px * var(--v-rhythm))' }}>

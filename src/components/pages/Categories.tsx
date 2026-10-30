@@ -135,7 +135,7 @@ export function Categories() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <PageHeader
-        eyebrow="Organize"
+
         title="Categories"
         actions={
           <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -151,7 +151,7 @@ export function Categories() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px var(--content-h-pad) 56px' }}>
         {filtered.length === 0 ? (
-          <EmptyState icon={<Tag size={22} />} title="No categories" description="Create custom categories to organize your transactions."
+          <EmptyState icon={<Tag size={22} />} title="No categories" description="Add your own to group entries your way."
             action={<button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add category</button>} />
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
