@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, HandCoins, ChevronDown, ChevronRight, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, CornerDownRight, Ellipsis, Undo2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, HandCoins, ChevronDown, ChevronRight, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, CornerDownRight, Ellipsis, Undo2, Receipt, Wallet } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
@@ -71,6 +71,167 @@ const isZero = (n: number) => Math.abs(n) <= 0.000001;
 /** Money is open both ways, so the smaller side can be cancelled against the larger. */
 const canCancelOut = (f: Friend) => f.cancellable > 0.000001;
 
+function Segmented<T extends string>({ value, onChange, options, disabled, size = 'md' }: {
+  value: T;
+  onChange: (v: T) => void;
+  options: readonly (readonly [T, React.ReactNode])[];
+  disabled?: boolean;
+  size?: 'sm' | 'md';
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', opacity: disabled ? 0.6 : 1 }}>
+      {options.map(([v, label]) => (
+        <button key={v} type="button" onClick={() => !disabled && onChange(v)} disabled={disabled} aria-pressed={value === v} style={{
+          flex: 1, padding: size === 'sm' ? '5px 0' : '7px 0', borderRadius: 'var(--radius-sm)', border: 'none',
+          cursor: disabled ? 'default' : 'pointer', fontFamily: 'var(--font-sans)', fontSize: size === 'sm' ? 12.5 : 13, fontWeight: 600,
+          background: value === v ? 'var(--surface)' : 'transparent',
+          color: value === v ? 'var(--ink)' : 'var(--ink-faint)',
+          boxShadow: value === v ? 'var(--shadow-sm)' : 'none',
+          transition: 'background var(--dur-fast), color var(--dur-fast)',
+        }}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+type Split = 'all' | 'half' | 'custom';
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * A bill shared with a friend. Whoever paid, your share is an expense (it counts in
+ * budgets) and the rest is a loan between you.
+ */
+function SharedBillForm({ defaultPerson, onSave, onCancel }: { defaultPerson?: string; onSave: () => void; onCancel: () => void }) {
+  const { accounts, categories, loans, showToast } = useAppStore();
+  const expenseCats = categories.filter(c => c.category_type === 'expense');
+  const knownNames = groupByFriend(loans).map(f => f.name);
+  const [person, setPerson] = useState(defaultPerson ?? '');
+  const [paidBy, setPaidBy] = useState<'friend' | 'me'>('friend');
+  const [total, setTotal] = useState('');
+  const [split, setSplit] = useState<Split>('all');
+  const [customShare, setCustomShare] = useState('');
+  const [categoryId, setCategoryId] = useState(() =>
+    (expenseCats.find(c => /food|dining|restaurant|eat/i.test(c.name)) ?? expenseCats[0])?.id ?? '');
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
+  const [date, setDate] = useState(todayISO());
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const friend = person.trim() || 'Your friend';
+  const totalNum = parseFloat(total) || 0;
+  const myShare = split === 'half' ? round2(totalNum / 2)
+    : split === 'all' ? (paidBy === 'friend' ? totalNum : 0)
+    : parseFloat(customShare) || 0;
+  const owed = paidBy === 'friend' ? myShare : round2(totalNum - myShare);
+  const accountName = accounts.find(a => a.id === accountId)?.name ?? 'your account';
+  const categoryName = expenseCats.find(c => c.id === categoryId)?.name ?? 'Expense';
+  const validShare = myShare >= 0 && myShare <= totalNum + 0.000001;
+
+  const handleSave = async () => {
+    if (!person.trim()) return showToast("Enter the friend's name", 'error');
+    if (totalNum <= 0) return showToast('Enter the bill amount', 'error');
+    if (!validShare) return showToast("Your share can't be more than the bill", 'error');
+    if (owed <= 0) return showToast(paidBy === 'friend' ? 'Enter your share of the bill' : 'Nobody owes anything if the whole bill is yours', 'error');
+    if (myShare > 0 && !categoryId) return showToast('Pick a category', 'error');
+    if (!accountId) return showToast('Select an account', 'error');
+    setSaving(true);
+    try {
+      await api.loans.createShared({
+        person: person.trim(), paid_by: paidBy, total: totalNum, my_share: myShare,
+        account_id: accountId, category_id: categoryId, date, notes: notes.trim(),
+      });
+      showToast(paidBy === 'friend' ? `Saved — you owe ${person.trim()} ${formatCurrency(owed)}` : `Saved — ${person.trim()} owes you ${formatCurrency(owed)}`);
+      onSave();
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const outcome: { icon: React.ReactNode; text: React.ReactNode; hint?: string }[] = paidBy === 'friend'
+    ? [
+        { icon: <Receipt size={14} />, text: <><b>{formatCurrency(myShare)}</b> {categoryName} expense</>, hint: 'Counts in your budget' },
+        { icon: <HandCoins size={14} />, text: <>You owe {friend} <b>{formatCurrency(owed)}</b></> },
+        { icon: <Wallet size={14} />, text: <>{accountName} stays the same</>, hint: 'No money left your account yet' },
+      ]
+    : [
+        { icon: <Wallet size={14} />, text: <><b>{formatCurrency(totalNum)}</b> leaves {accountName}</> },
+        ...(myShare > 0 ? [{ icon: <Receipt size={14} />, text: <><b>{formatCurrency(myShare)}</b> {categoryName} expense</>, hint: 'Your share — counts in your budget' }] : []),
+        { icon: <HandCoins size={14} />, text: <>{friend} owes you <b>{formatCurrency(owed)}</b></> },
+      ];
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="label mb-1.5 block">Friend</label>
+        <input type="text" value={person} onChange={e => setPerson(e.target.value)} className="input" placeholder="Friend's name" autoFocus={!defaultPerson} list="loan-friends" />
+        <datalist id="loan-friends">{knownNames.map(n => <option key={n} value={n} />)}</datalist>
+      </div>
+      <div>
+        <label className="label mb-1.5 block">Who paid?</label>
+        <Segmented value={paidBy} onChange={v => { setPaidBy(v); setSplit('all'); }}
+          options={[['friend', `${person.trim() || 'Friend'} paid`], ['me', 'I paid']]} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label mb-1.5 block">Total bill</label>
+          <MoneyInput value={total} onChange={e => setTotal(e.target.value)} min="0" step="0.01" autoFocus={!!defaultPerson} />
+        </div>
+        <div>
+          <label className="label mb-1.5 block">Date</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input" />
+        </div>
+      </div>
+      <div>
+        <label className="label mb-1.5 block">How to split</label>
+        <Segmented size="sm" value={split} onChange={setSplit}
+          options={[['all', paidBy === 'friend' ? 'All mine' : 'All theirs'], ['half', 'Half each'], ['custom', 'Custom']]} />
+        {split === 'custom' && (
+          <div style={{ marginTop: 8 }}>
+            <MoneyInput value={customShare} onChange={e => setCustomShare(e.target.value)} min="0" step="0.01" placeholder="Your share" autoFocus />
+            {!validShare && <p className="text-xs mt-1" style={{ color: 'var(--negative)' }}>Your share can't be more than the bill.</p>}
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {myShare > 0 && (
+          <div>
+            <label className="label mb-1.5 block">Category</label>
+            <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="input">
+              {expenseCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
+        <div style={{ gridColumn: myShare > 0 ? undefined : '1 / -1' }}>
+          <label className="label mb-1.5 block">{paidBy === 'me' ? 'Paid from' : 'Account'}</label>
+          <select value={accountId} onChange={e => setAccountId(e.target.value)} className="input">
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="label mb-1.5 block">What was it?</label>
+        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="Lunch, taxi, tickets…" />
+      </div>
+
+      {totalNum > 0 && validShare && owed > 0 && (
+        <div style={{ background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', padding: '10px 12px' }}>
+          <div className="mm-eyebrow" style={{ marginBottom: 6 }}>This will record</div>
+          {outcome.map((o, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '3px 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink)' }}>
+              <span style={{ color: 'var(--clay)', marginTop: 2, flexShrink: 0 }}>{o.icon}</span>
+              <span>{o.text}{o.hint && <span style={{ color: 'var(--ink-faint)' }}> · {o.hint}</span>}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex justify-end gap-2 pt-2">
+        <button onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button onClick={handleSave} disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Save bill'}</button>
+      </div>
+    </div>
+  );
+}
+
 function LoanForm({ loan, defaultPerson, onSave, onCancel }: { loan?: Loan; defaultPerson?: string; onSave: () => void; onCancel: () => void }) {
   const { accounts, loans, showToast } = useAppStore();
   const [direction, setDirection] = useState<Direction>(loan?.direction ?? 'borrowed');
@@ -105,17 +266,8 @@ function LoanForm({ loan, defaultPerson, onSave, onCancel }: { loan?: Loan; defa
   return (
     <div className="space-y-4">
       {/* Direction is fixed once a loan exists, since it decides which way money moved. */}
-      <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', opacity: loan ? 0.6 : 1 }}>
-        {([['borrowed', 'I borrowed'], ['lent', 'I lent']] as const).map(([d, label]) => (
-          <button key={d} onClick={() => !loan && setDirection(d)} disabled={!!loan} style={{
-            flex: 1, padding: '7px 0', borderRadius: 'var(--radius-sm)', border: 'none', cursor: loan ? 'default' : 'pointer',
-            fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
-            background: direction === d ? 'var(--surface)' : 'transparent',
-            color: direction === d ? 'var(--ink)' : 'var(--ink-faint)',
-            boxShadow: direction === d ? 'var(--shadow-sm)' : 'none',
-          }}>{label}</button>
-        ))}
-      </div>
+      <Segmented value={direction} onChange={setDirection} disabled={!!loan}
+        options={[['borrowed', 'I borrowed'], ['lent', 'I lent']]} />
       <div>
         <label className="label mb-1.5 block">{direction === 'borrowed' ? 'Borrowed from' : 'Lent to'}</label>
         <input type="text" value={person} onChange={e => setPerson(e.target.value)} className="input" placeholder="Friend's name" autoFocus={!defaultPerson} list="loan-friends" />
@@ -148,9 +300,13 @@ function LoanForm({ loan, defaultPerson, onSave, onCancel }: { loan?: Loan; defa
         <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="What it was for…" />
       </div>
       <p className="text-xs text-[hsl(var(--text-muted))]">
-        {direction === 'borrowed'
-          ? 'Adds the money to the account. It is not counted as income.'
-          : 'Takes the money out of the account. It is not counted as an expense.'}
+        {loan?.transaction_id && direction === 'borrowed'
+          ? `From a shared bill. Changing the amount also changes your ${loan.category_name ?? ''} expense to match.`
+          : loan?.transaction_id
+            ? `From a shared bill. Your ${formatCurrency(loan.expense_amount ?? 0)} ${loan.category_name ?? ''} share is a separate expense — edit it on Transactions.`
+            : direction === 'borrowed'
+              ? 'Adds the money to the account. It is not counted as income.'
+              : 'Takes the money out of the account. It is not counted as an expense.'}
       </p>
       <div className="flex justify-end gap-2 pt-2">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
@@ -286,21 +442,28 @@ function LoanRow({ loan, friendName, returns, onEdit, onDelete, onReturn, onDele
   const settled = isSettled(loan);
   const overdue = !settled && !!loan.due_date && loan.due_date < todayISO();
   const pct = loan.amount > 0 ? Math.min(100, (loan.returned / loan.amount) * 100) : 0;
+  const bill = !!loan.transaction_id;
+  const title = bill
+    ? (borrowed ? `${friendName} paid for you` : `You paid for ${friendName}`)
+    : (borrowed ? 'You borrowed' : 'You lent');
 
   return (
     <div style={{ borderTop: '1px solid var(--line)', padding: '14px 0' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <span title={borrowed ? 'Money came in' : 'Money went out'} style={{
+        <span title={bill ? 'Shared bill' : borrowed ? 'Money came in' : 'Money went out'} style={{
           width: 30, height: 30, borderRadius: 999, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: settled ? 'var(--paper-sunk)' : borrowed ? 'var(--negative-tint)' : 'var(--positive-tint)',
           color: settled ? 'var(--ink-faint)' : borrowed ? 'var(--negative)' : 'var(--positive)',
         }}>
-          {borrowed ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}
+          {bill ? <Receipt size={15} /> : borrowed ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: settled ? 'var(--ink-muted)' : 'var(--ink)' }}>
-              {borrowed ? 'You borrowed' : 'You lent'} <span style={{ ...mono, fontWeight: 500 }}>{formatCurrency(loan.amount)}</span>
+              {title} <span style={{ ...mono, fontWeight: 500 }}>{formatCurrency(loan.amount)}</span>
+              {bill && loan.category_name && (
+                <span style={{ marginLeft: 8, verticalAlign: 'middle' }}><Pill tone="clay">{loan.category_name}</Pill></span>
+              )}
             </div>
             {settled ? (
               <Pill tone="positive">✓ Settled</Pill>
@@ -312,6 +475,9 @@ function LoanRow({ loan, friendName, returns, onEdit, onDelete, onReturn, onDele
           </div>
           <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)', marginTop: 2 }}>
             {formatDate(loan.date)}{loan.account_name ? ` · ${loan.account_name}` : ''}
+            {bill && !borrowed && loan.expense_amount !== undefined && loan.expense_amount !== null && (
+              <> · bill {formatCurrency(loan.amount + loan.expense_amount)}, your share {formatCurrency(loan.expense_amount)}</>
+            )}
             {loan.due_date && !settled && (
               <span style={{ color: overdue ? 'var(--negative)' : 'var(--ink-faint)', fontWeight: overdue ? 600 : 400 }}>
                 {' · '}{overdue ? 'Overdue since' : 'Return by'} {formatDate(loan.due_date)}
@@ -359,13 +525,14 @@ function LoanRow({ loan, friendName, returns, onEdit, onDelete, onReturn, onDele
   );
 }
 
-function FriendCard({ friend, onEdit, onDelete, onReturn, onDeleteReturn, onNewLoan, onCancelOut }: {
+function FriendCard({ friend, onEdit, onDelete, onReturn, onDeleteReturn, onNewLoan, onSplitBill, onCancelOut }: {
   friend: Friend;
   onEdit: (l: Loan) => void;
   onDelete: (l: Loan) => void;
   onReturn: (l: Loan) => void;
   onDeleteReturn: (r: LoanRepayment) => void;
   onNewLoan: () => void;
+  onSplitBill: () => void;
   onCancelOut: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -458,9 +625,14 @@ function FriendCard({ friend, onEdit, onDelete, onReturn, onDeleteReturn, onNewL
                 {showSettled ? <ChevronDown size={14} /> : <ChevronRight size={14} />} {showSettled ? 'Hide' : 'Show'} paid-back loans ({settledLoans.length})
               </button>
             ) : <span />}
-            <button onClick={onNewLoan} style={{ ...linkBtn, fontWeight: 600, color: 'var(--clay)' }}>
-              <Plus size={13} /> New loan with {name}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button onClick={onSplitBill} style={{ ...linkBtn, fontWeight: 600, color: 'var(--clay)' }}>
+                <Receipt size={13} /> Split a bill
+              </button>
+              <button onClick={onNewLoan} style={{ ...linkBtn, fontWeight: 600, color: 'var(--clay)' }}>
+                <Plus size={13} /> New loan
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -508,7 +680,7 @@ function CancelOutSummary({ friend }: { friend: Friend }) {
 }
 
 export function Loans() {
-  const { loans, fetchLoans, fetchAccounts, fetchDashboard, showToast } = useAppStore();
+  const { loans, fetchLoans, fetchAccounts, fetchDashboard, fetchTransactions, showToast } = useAppStore();
   const [showForm, setShowForm] = useState(false);
   const [editLoan, setEditLoan] = useState<Loan | undefined>();
   const [newLoanPerson, setNewLoanPerson] = useState<string | undefined>();
@@ -522,7 +694,8 @@ export function Loans() {
   useEffect(() => { fetchLoans(); }, []);
 
   // Loans move money between you and friends, so balances need a refresh too.
-  const refresh = () => { fetchLoans(); fetchAccounts(); fetchDashboard(); };
+  // Shared bills also add an expense, so transactions refresh with them.
+  const refresh = () => { fetchLoans(); fetchAccounts(); fetchDashboard(); fetchTransactions({ limit: 100 }); };
 
   const handleDeleteLoan = async () => {
     if (!deleteLoan) return;
@@ -546,6 +719,10 @@ export function Loans() {
 
   const openForm = (loan?: Loan, person?: string) => { setEditLoan(loan); setNewLoanPerson(person); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditLoan(undefined); setNewLoanPerson(undefined); };
+  // undefined: closed; '' : open with no friend picked yet.
+  const [billPerson, setBillPerson] = useState<string | undefined>();
+  const openBill = (person?: string) => setBillPerson(person ?? '');
+  const closeBill = () => setBillPerson(undefined);
 
   const byAmount = (a: Friend, b: Friend) => Math.abs(b.net) - Math.abs(a.net) || a.name.localeCompare(b.name);
   const friends = groupByFriend(loans);
@@ -582,6 +759,7 @@ export function Loans() {
       onReturn={setReturnLoan}
       onDeleteReturn={setDeleteReturn}
       onNewLoan={() => openForm(undefined, f.name)}
+      onSplitBill={() => openBill(f.name)}
       onCancelOut={() => setCancelOutKey(f.key)}
     />
   );
@@ -593,9 +771,14 @@ export function Loans() {
         title="Loans"
         lead={lead}
         actions={
-          <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={15} /> New Loan
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={() => openBill()} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Receipt size={15} /> Split a bill
+            </button>
+            <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={15} /> New Loan
+            </button>
+          </div>
         }
       />
 
@@ -605,8 +788,13 @@ export function Loans() {
             <EmptyState
               icon={<HandCoins size={22} />}
               title="No loans"
-              description="Record money you borrow from or lend to friends, and track it until it's paid back."
-              action={<button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> New Loan</button>}
+              description="Record money you borrow from or lend to friends, or a bill one of you paid for the other, and track it until it's paid back."
+              action={
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => openBill()} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Receipt size={14} /> Split a bill</button>
+                  <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> New Loan</button>
+                </div>
+              }
             />
           ) : (
             <>
@@ -634,12 +822,27 @@ export function Loans() {
       </div>
 
       <Modal open={showForm} onClose={closeForm} title={editLoan ? 'Edit Loan' : newLoanPerson ? `New Loan with ${newLoanPerson}` : 'New Loan'} size="sm">
+        {!editLoan && (
+          <button onClick={() => { const p = newLoanPerson; closeForm(); openBill(p); }}
+            style={{ ...linkBtn, width: '100%', gap: 8, marginBottom: 14, padding: '9px 12px', borderRadius: 'var(--radius)', background: 'var(--clay-tint)', color: 'var(--clay-ink)', fontWeight: 600 }}>
+            <Receipt size={14} /> A friend paid for something, or you paid for them? Split a bill instead
+          </button>
+        )}
         <LoanForm
           key={editLoan?.id ?? newLoanPerson ?? 'new'}
           loan={editLoan}
           defaultPerson={newLoanPerson}
           onSave={() => { closeForm(); refresh(); }}
           onCancel={closeForm}
+        />
+      </Modal>
+
+      <Modal open={billPerson !== undefined} onClose={closeBill} title={billPerson ? `Split a bill with ${billPerson}` : 'Split a bill'} size="sm">
+        <SharedBillForm
+          key={billPerson ?? 'closed'}
+          defaultPerson={billPerson || undefined}
+          onSave={() => { closeBill(); refresh(); }}
+          onCancel={closeBill}
         />
       </Modal>
 
@@ -668,6 +871,7 @@ export function Loans() {
       >
         <p className="text-sm text-[hsl(var(--text-muted))]">
           Delete this loan with {deleteLoan?.person}? Every balance change it made, including its returns, will be undone.
+          {deleteLoan?.transaction_id && <> The {formatCurrency(deleteLoan.expense_amount ?? 0)} {deleteLoan.category_name ?? ''} expense from the same bill is deleted too.</>}
           If it was cancelled out against other loans, that cancel-out is undone too.
         </p>
       </Modal>
