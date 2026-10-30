@@ -61,7 +61,7 @@ let pendingDelete: { id: string; commit: () => Promise<void>; timer: ReturnType<
 
 export type ToastType = 'success' | 'error' | 'info';
 export interface ToastAction { label: string; run: () => void }
-export type QuickAddKind = 'transaction' | 'expense' | 'income';
+export type QuickAddKind = 'transaction' | 'expense' | 'income' | 'friend';
 
 interface AppState {
   // Navigation

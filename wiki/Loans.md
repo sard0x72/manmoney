@@ -1,83 +1,62 @@
 # Loans
 
-The Loans page keeps track of money that moves between you and friends for a short while — you borrow some and pay it back in a few days, or you lend some and wait for it to come back.
+The Loans page keeps track of money between you and friends: cash you borrow or lend for a while, and bills one of you paid for the other.
 
-## Adding a loan
+## Adding
 
-Click *New Loan* and choose which way the money went:
+Click **Add** at the top of the page, or **Add** at the bottom of a friend's card to start with that friend filled in. The Dashboard's **Friend** button opens the same form. Fill in:
 
-- **I borrowed** — a friend gave you money and you'll pay it back.
-- **I lent** — you gave a friend money and they'll pay you back.
+1. **Friend**: the name. It suggests friends you've already added.
+2. **Who paid?** **<Name> paid** or **I paid**.
+3. **For what?** **Cash** for a plain loan, or a category such as Food for a bill. The six categories you use most are shown; **More…** has the rest.
+4. **Amount** for cash, or **Total bill** for a bill.
+5. For a bill, the **Split**: **All mine** (they covered you), **All theirs** (you covered them), **Half**, or **Custom** with your share.
+6. The **account** the money went into or came out of.
+7. **More options**: the date, a **Return by** date, and a note.
 
-Then fill in the friend's name, the amount, the account the money went into (or came out of), the date, and optionally a **return by** date and a note.
+Before you save, a line of tags shows what will be recorded, for example `Food $25 · Vali owes you $25 · Cash −$50`.
 
-## Splitting a bill
+| What happened | Choose | What gets recorded | Account balance |
+|---|---|---|---|
+| Vali gave you $100 | Vali paid · Cash | You owe Vali $100 | Up $100 |
+| You lent Vali $100 | I paid · Cash | Vali owes you $100 | Down $100 |
+| Vali paid $50 for your food | Vali paid · Food · All mine | $50 Food expense + you owe Vali $50 | No change yet |
+| You paid an $80 dinner, half each | I paid · Food · Half | $40 Food expense + Vali owes you $40 | Down $80 |
 
-When a friend pays for something of yours, or you pay for them, use **Split a bill** instead of a plain loan. It's at the top of the page and at the bottom of every friend's card. Fill in:
-
-- **Who paid?** Your friend or you.
-- **Total bill**, and **how to split** it: *All mine* (they covered you), *All theirs* (you covered them), *Half each*, or a *Custom* share.
-- The **category** for your share, such as Food, and the **account**.
-
-A box at the bottom shows what will be recorded before you save. Your share becomes an **expense**, so it counts in your [[Budgets]] and [[Analytics]]. The rest becomes a **loan** between you:
-
-| What happened | What gets recorded | Account balance |
-|---|---|---|
-| Vali paid $50 for your food | $50 Food expense + you owe Vali $50 | No change: you haven't paid anything yet |
-| You paid an $80 dinner, half each | $40 Food expense + Vali owes you $40 | Down $80, the whole bill you paid |
-| You paid $30 for Vali's taxi | Vali owes you $30, no expense | Down $30 |
-
-When you pay Vali back, record it with **Pay back** on the loan. Don't add another expense, or the meal would be counted twice.
-
-On the friend's card, these loans show a receipt icon and their category, for example "Vali paid for you $50 · Food".
-
-- **Deleting** the loan also deletes the expense it came with.
-- **Editing** the amount of a bill your friend paid also changes your expense to match.
-- **Deleting the expense** on the [[Transactions]] page keeps the loan, since you still owe the money, and unlinks it from the expense.
-
-## How loans affect your balances
-
-- **Borrowing** adds the money to the account you picked. **Lending** takes it out.
-- **Paying back** or **getting paid back** moves it the other way.
-
-Loans are **not** income or expenses — borrowing isn't earning, and lending isn't spending. So they never change your monthly income and expense totals, your [[Budgets]], or [[Analytics]]. They only move account balances, and they don't appear on the [[Transactions]] page.
-
-## Recording a return
-
-Click *Record payback* (when you borrowed) or *Record return* (when you lent). The amount starts filled in with what's still open, so settling in full is one click — change it for a partial return. You can pick a different account than the original one, for example if a friend lent you cash but you paid them back by card.
+Cash loans are **not** income or spending; they only move account balances. For a bill, your share is an **expense**, so it counts in your [[Budgets]] and [[Analytics]], and appears on [[Transactions]] tagged "Split with Vali".
 
 ## Reading the page
 
-Loans are grouped by friend. Each friend gets one card showing the **net** balance between you. If you borrowed $300 from Ali and lent Ali $400, the card says Ali **owes you $100**, and the line under the name reads "You owe $300 · they owe $400 — cancels out to $100".
+At the top: what friends **owe you** and what **you owe**. Below, one card per friend, in sections:
 
-Nothing is cancelled automatically. When money is open both ways, the card gets a **Can cancel out** tag; see [Cancelling out](#cancelling-out) below.
+- **Owe you**: friends who owe you, on balance.
+- **You owe**: friends you owe.
+- **Even**: open both ways for the same amount, so nobody owes anything overall yet.
+- **Settled**: friends with nothing open, folded away.
 
-- **You owe** lists friends you owe on balance, with the total at the top.
-- **Owed to you** lists friends who owe you on balance.
-- **Evens out** lists friends whose open loans in each direction are the same size, so nobody owes anything overall, but the loans aren't closed yet.
-- Friends with nothing open move to **Settled** at the bottom, collapsed so they stay out of the way.
-- An **Overdue** tag means one of that friend's loans has passed its return-by date.
+A card shows how many loans are open, how many are overdue, and the net amount: **+$100** means they owe you, **−$50** means you owe them.
 
-Click a friend to open every loan with them, newest first. Each loan shows what's left, its due date, a bar for how much has come back, and the paybacks or returns recorded against it. Paid-back loans are tucked behind **Show paid-back loans**. Use **New loan with …** at the bottom to add another loan with the same friend.
+Click a card to see each loan: what it was, its date and account, what's left, and its paybacks underneath. Settled loans are behind **Show settled**.
 
-## Cancelling out
+## Paying back
 
-If you owe a friend and they owe you too, open their card and click **Cancel out**. You'll see what each of you owes and what's left afterwards, and nothing happens until you confirm.
+Click **Pay back** (you owe) or **Got paid back** (they owe) on a loan. The amount starts at what's left, so settling in full is one click. You can choose a different account than the original one.
 
-Cancelling out records the smaller amount as paid back on **both** sides, oldest loans first. If you owe Ali $300 and Ali owes you $400, both sides get $300 marked as paid back: your loan from Ali is settled, and Ali still owes you $100.
+## Settle both ways
 
-No money actually changes hands, so **account balances don't change**. In the loan history it shows up as "Cancelled out".
+If you owe a friend and they owe you too, their card shows **Settle $300 both ways**. It closes the smaller amount on both sides, oldest loans first. If you owe Ali $300 and Ali owes you $400, your loan is settled and Ali still owes you $100. No money moves, so account balances don't change.
 
-To undo it, open the ⋯ menu next to any "Cancelled out" line and choose **Undo cancel-out**. It is removed from every loan it touched at once, so the two sides never get out of step. Deleting a loan that was cancelled out undoes the cancel-out too.
-
-Friends are matched by name, ignoring capital letters and extra spaces, so "Ali" and "ali" are the same person. The name box suggests friends you've already added, which helps keep names consistent.
+To undo it, open the ⋯ menu on a "Settled both ways" line and choose **Undo settle**.
 
 ## Editing and deleting
 
-Edit and delete are in the ⋯ menu at the end of each loan and each payback.
+The ⋯ menu on each loan has **Edit** and **Delete**; each payback has **Delete**.
 
-- **Editing** lets you change the name, amount, return-by date, and note. Changing the amount adjusts the original account by the difference. Which way the money went, the account, and the date are fixed — to change those, delete the loan and add it again.
+- **Editing** changes the name, amount, return-by date and note. Changing the amount adjusts the original account by the difference. For a bill a friend paid, it also changes your expense to match. Which way the money went, the account and the date are fixed; to change those, delete the loan and add it again.
 - **Deleting a payback** undoes its balance change. You can **Undo** it for 6 seconds.
-- **Deleting a loan** undoes everything it did. A plain loan can be brought back with **Undo**. If the loan has paybacks, was cancelled out, or came from a shared bill, ManMoney asks first and lists what goes with it.
+- **Deleting a loan** undoes everything it did. A plain loan can be brought back with **Undo**. If it has paybacks, was settled both ways, or came from a bill, ManMoney asks first and lists what goes with it, including the bill's expense.
+- **Deleting a bill's expense** on [[Transactions]] keeps the loan, since the money is still owed.
+
+Friends are matched by name, ignoring capital letters and extra spaces, so "Ali" and "ali" are the same person.
 
 Related: [[Accounts]] · [[Dashboard]]

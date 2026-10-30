@@ -1,35 +1,33 @@
 # Dashboard
 
-The Dashboard is the first thing you see when the app opens. It's a one-screen summary of where you stand this month, pulling together numbers from everywhere else in the app.
+The Dashboard is the first thing you see when the app opens: where you stand this month, on one screen.
 
-## The top row
+## Quick actions
 
-Three cards give you the headline figures:
+Three buttons at the top add something without leaving the page:
 
-- **Total Balance** — the sum of every account's balance.
-- **Income** — everything earned so far this month.
-- **Expenses** — everything spent so far this month.
+- **Expense** opens the transaction form set to expense.
+- **Income** opens it set to income.
+- **Friend** opens the loan form, for money with a friend or a bill one of you paid. See [[Loans]].
 
-## Daily cash flow
+## The figures
 
-A chart of income and expenses across the current month, day by day, so you can see the rhythm of money coming in and going out.
+- **Balance**: the sum of every account. It turns red only if it's below zero.
+- **Spent this month** and **Earned this month**.
+- **Friends** appears when any loan is open: what friends owe you (**+**) and what you owe (**−**). Click it to open [[Loans]].
 
-## This month
+## Cash flow and budget
 
-If you've set budgets for the month, a ring shows how much of your total budget you've spent. If you haven't, the panel offers a shortcut to [[Budgets]].
+A chart of money in and out across the month, day by day. If you've set budgets, a ring shows how much of the month's total you've spent; otherwise there's a shortcut to [[Budgets]].
 
-## Top spending and recent transactions
+## Recent activity and top spending
 
-- **Top Spending** lists your biggest expense categories this month, each as a proportion of the largest. "View all" jumps to [[Analytics]].
-- **Recent Transactions** shows your latest few entries. "View all" jumps to [[Transactions]].
-
-## Accounts
-
-A compact strip of all your accounts with their balances, color-coded. "Manage" takes you to [[Accounts]].
+- **Recent activity** shows your latest entries. Click one to edit it; **See all** opens [[Transactions]].
+- **Top spending** lists this month's biggest expense categories.
 
 ## Tips
 
-- Make the Dashboard your **daily glance** — open it, scan the three cards and the budget ring, and you know if anything needs attention.
-- If Total Balance looks wrong, the cause is almost always a transaction issue, not a Dashboard issue — check [[Transactions]].
+- Make the Dashboard your daily glance: the figures and the budget ring tell you if anything needs attention.
+- If Balance looks wrong, the cause is almost always a transaction; check [[Transactions]].
 
 Related: [[Transactions]] · [[Budgets]] · [[Analytics]] · [[Accounts]]

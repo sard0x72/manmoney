@@ -43,5 +43,5 @@ Most deletes happen at once and show an **Undo** button for 6 seconds. Only dele
 
 ## Track what matters to you
 
-- **Keep recurring entries current.** Add bills and income as they start, end them when they stop. The monthly net impact then reflects your real baseline. See [[Recurring Transactions]].
-- **Update savings goals when you actually save.** They're a deliberate tracker — bump the saved amount when you move money aside. See [[Savings Goals]].
+- **Keep recurring entries current.** Add bills and income as they start, end them when they stop. The monthly figures then reflect your real baseline. See [[Recurring Transactions]].
+- **Update goals when you actually save.** They're a deliberate tracker: use **Add money** when you move money aside. See [[Savings Goals]].

@@ -14,7 +14,7 @@ Recurring transactions are money that moves on a schedule: rent, a salary, a str
 
 ## Adding one
 
-Click **Add recurring**, choose expense or income, and fill in the amount, category, account, frequency and start date. Add an end date if it shouldn't run forever. Click **Save** or press Enter.
+Click **Add recurring**, choose expense or income, and fill in the amount, category, account, frequency (**Daily**, **Weekly**, **Monthly** or **Yearly**) and when it **Starts**. **More options** has an end date, the payee, payment method and a note. Click **Save** or press Enter.
 
 ## Entries are added automatically
 
@@ -38,7 +38,7 @@ Click a row to edit it. Use the **⋯** menu on the row for the rest.
 
 ## Reading the page
 
-Each row shows the frequency, the next date and the account. The header shows how much comes in and goes out each month across all active entries, and the footer shows the net.
+Each row shows the category icon, the payee or category, and one line like "Monthly · next Nov 5 · Cash", or **Paused**. At the top, **Monthly in**, **Monthly out** and **Net** add up all active entries as monthly amounts: a weekly entry counts 52 times a year, a daily one 365 times.
 
 ## Tips
 

@@ -1,37 +1,37 @@
 # Tuition
 
-The Tuition page tracks a tuition fee from start to finish: the total you owe, how much you've already paid, and how much is left.
+The Tuition page tracks a tuition fee from start to finish: the total, what you've paid, and what's left.
 
 ## Adding a tuition fee
 
-Click *Add Tuition* and fill in:
+Click **Add tuition** and fill in:
 
-- **Name** — something like "2026–2027 academic year" or "Fall semester". Add one entry per year or semester if you pay them separately.
-- **Total fee** — the full amount you owe for that period.
-- **Due date** (optional) — when it must be paid in full. If the date passes while money is still owed, the card shows it as overdue.
-- **Notes** (optional) — the university, a contract number, anything useful.
+- **Name**: something like "2026–2027 academic year" or "Fall semester". Add one per year or semester if you pay them separately.
+- **Total**: the full amount for that period.
+- **Due date** (optional): when it must be paid in full. If the date passes with money still owed, the card says **Overdue since**.
+- **Note** (optional): the university, a contract number.
 
-## Recording a payment
+## Paying
 
-Click *Record payment* on the fee's card. The amount starts filled in with whatever is left, so paying in full is one click — change it for a partial payment or an installment. Choose the account you paid from, the date, and the payment method.
+Click **Pay** on the card. The amount starts at what's left, so paying in full is one click; change it for an installment. Choose the account you paid **From**. **More options** has the date, payment method and a note.
 
-Each payment is saved as an **Education expense** in [[Transactions]], taken from the account you picked. That means:
+Each payment counts as an **Education expense** in [[Transactions]], taken from the account you picked:
 
-- the account's balance goes down, just like any other expense;
-- the payment counts toward your monthly spending, your Education budget, and [[Analytics]];
-- you don't need to enter it a second time on the Transactions page.
+- the account's balance goes down, like any other expense;
+- it counts toward your spending, your Education budget, and [[Analytics]];
+- you don't enter it again on the Transactions page, where it's tagged **Tuition**.
 
-## Tracking progress
+## Reading a card
 
-Each card shows **Paid**, **Left to pay**, and the **Total fee**, with a progress bar. Once the fee is covered, the card shows *Paid in full*. The header adds up all your tuition fees together.
+Each card shows how much you've paid out of the total, one progress bar, and what's left. A fully paid fee shows **Paid**. At the top of the page, **Paid**, **Left** and **Total** add up all your fees.
 
-Open **Payment history** on a card to see every payment with its date, account, and notes.
+Open **Payments** on a card to see each payment with its date and account.
 
 ## Editing and deleting
 
-- **Editing a fee** changes its name, total, due date, or notes. Payments aren't affected.
 Edit and delete are in the **⋯** menu on each card and each payment.
 
+- **Editing a fee** changes its name, total, due date or note. Payments aren't affected.
 - **Deleting a payment** puts the money back in the account it came from. You can **Undo** it for 6 seconds. Deleting the matching transaction on the Transactions page does the same thing.
 - **Deleting a fee** asks first. It removes the tracker but keeps its payments as ordinary Education expenses, so your balances and history stay correct.
 
