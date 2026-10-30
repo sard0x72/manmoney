@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Tag } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
-import { Modal } from '../ui/Modal';
+import { RowMenu } from '../ui/RowMenu';
+import { useAddRequest } from '../../lib/useAddRequest';
 import { FormSheet, useDirty } from '../ui/FormSheet';
 import { Segmented } from '../ui/Segmented';
 import { EmptyState } from '../ui/EmptyState';
@@ -78,87 +79,58 @@ function CategoryForm({ cat, type, onSaved, onClose }: { cat?: Category; type?: 
 }
 
 function CatCard({ cat, onEdit, onDelete }: { cat: Category; onEdit: () => void; onDelete: () => void }) {
-  const [hovered, setHovered] = useState(false);
-  const tint = `${cat.color}22`;
-
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+    <div className="group mm-acctrow" role="button" tabIndex={0} onClick={onEdit}
+      onKeyDown={e => { if (e.key === 'Enter' && e.target === e.currentTarget) onEdit(); }}
       style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '12px 14px',
-        borderRadius: 'var(--radius)',
-        border: '1px solid var(--line)',
-        background: hovered ? 'var(--surface)' : 'var(--paper)',
-        cursor: 'default',
-        transition: 'background 120ms',
+        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 10px 12px 14px',
+        borderRadius: 'var(--radius)', border: '1px solid var(--line)', background: 'var(--surface)', cursor: 'pointer',
       }}
     >
       <div style={{
         width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-        background: tint, color: cat.color,
+        background: `${cat.color}22`, color: cat.color,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <CategoryIcon icon={cat.icon} size={17} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600,
-          color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {cat.name}
-        </div>
-        {cat.is_default && (
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-faint)', marginTop: 1 }}>Default</div>
-        )}
+      <div style={{
+        flex: 1, minWidth: 0, fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600,
+        color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>
+        {cat.name}
       </div>
-      <div style={{ display: 'flex', gap: 2, opacity: hovered ? 1 : 0, transition: 'opacity 120ms', flexShrink: 0 }}>
-        <button
-          onClick={onEdit}
-          style={{ padding: 5, borderRadius: 6, border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--ink-faint)', display: 'flex' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--paper-sunk)'; (e.currentTarget as HTMLElement).style.color = 'var(--ink)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; }}
-        >
-          <Pencil size={13} />
-        </button>
-        {!cat.is_default && (
-          <button
-            onClick={onDelete}
-            style={{ padding: 5, borderRadius: 6, border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--ink-faint)', display: 'flex' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; }}
-          >
-            <Trash2 size={13} />
-          </button>
-        )}
-      </div>
+      <RowMenu items={[
+        { label: 'Edit', icon: <Pencil size={13} />, onSelect: onEdit },
+        {
+          label: 'Delete', icon: <Trash2 size={13} />, onSelect: onDelete, danger: true,
+          disabled: cat.is_default, hint: "Built-in categories can't be deleted",
+        },
+      ]} />
     </div>
   );
 }
 
 export function Categories() {
-  const { categories, fetchCategories, showToast } = useAppStore();
+  const { categories: all, fetchCategories, pendingDeletes, deleteWithUndo } = useAppStore();
+  const categories = all.filter(c => !pendingDeletes.has(c.id));
   const [showForm, setShowForm] = useState(false);
   const [editCat, setEditCat] = useState<Category | undefined>();
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
+  const openForm = (c?: Category) => { setEditCat(c); setShowForm(true); };
+  useAddRequest('categories', () => openForm());
 
   useEffect(() => { fetchCategories(); }, []);
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try {
-      await api.categories.delete(deleteId);
-      showToast('Category deleted');
-      setDeleteId(null);
-      fetchCategories();
-    } catch (e: any) {
-      showToast(e?.toString() ?? 'Error', 'error');
-    }
-  };
+  // If the category turns out to be in use, the real delete fails, the error
+  // says why, and the card comes back.
+  const handleDelete = (c: Category) => deleteWithUndo({
+    id: c.id, label: 'Category',
+    commit: async () => { await api.categories.delete(c.id); await fetchCategories(); },
+  });
 
   const filtered = categories.filter(c => c.category_type === activeType);
+  const count = (t: 'expense' | 'income') => categories.filter(c => c.category_type === t).length;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -166,39 +138,25 @@ export function Categories() {
         eyebrow="Organize"
         title="Categories"
         actions={
-          <button onClick={() => { setEditCat(undefined); setShowForm(true); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={15} /> New Category
+          <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={15} /> Add category
           </button>
         }
       />
 
-      <div style={{ padding: '0 40px', borderBottom: '1px solid var(--line)', display: 'flex', gap: 4, flexShrink: 0, paddingTop: 12, paddingBottom: 12 }}>
-        {(['expense', 'income'] as const).map(t => (
-          <button key={t} onClick={() => setActiveType(t)}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-all"
-            style={activeType === t
-              ? { background: 'var(--clay)', color: 'var(--text-on-accent)' }
-              : { color: 'var(--text-secondary)' }}
-            onMouseEnter={e => { if (activeType !== t) (e.currentTarget as HTMLElement).style.background = 'var(--paper-sunk)'; }}
-            onMouseLeave={e => { if (activeType !== t) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-            {t} Categories
-            <span className="ml-1.5 text-xs opacity-70">({categories.filter(c => c.category_type === t).length})</span>
-          </button>
-        ))}
+      <div style={{ padding: '12px var(--content-h-pad)', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
+        <Segmented size="sm" fill={false} value={activeType} onChange={setActiveType} label="Category type"
+          options={[['expense', 'Expense', count('expense')], ['income', 'Income', count('income')]]} />
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 40px 56px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px var(--content-h-pad) 56px' }}>
         {filtered.length === 0 ? (
-          <EmptyState icon={<Tag size={22} />} title="No categories" description="Create custom categories to organize your transactions." action={<button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> New Category</button>} />
+          <EmptyState icon={<Tag size={22} />} title="No categories" description="Create custom categories to organize your transactions."
+            action={<button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add category</button>} />
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
             {filtered.map(c => (
-              <CatCard
-                key={c.id}
-                cat={c}
-                onEdit={() => { setEditCat(c); setShowForm(true); }}
-                onDelete={() => setDeleteId(c.id)}
-              />
+              <CatCard key={c.id} cat={c} onEdit={() => openForm(c)} onDelete={() => handleDelete(c)} />
             ))}
           </div>
         )}
@@ -213,12 +171,6 @@ export function Categories() {
           onClose={() => { setShowForm(false); setEditCat(undefined); }}
         />
       )}
-
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Category" size="sm"
-        footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">Delete this category? Categories that are in use can't be deleted.</p>
-      </Modal>
     </div>
   );
 }

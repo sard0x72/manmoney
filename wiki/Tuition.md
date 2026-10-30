@@ -30,7 +30,9 @@ Open **Payment history** on a card to see every payment with its date, account, 
 ## Editing and deleting
 
 - **Editing a fee** changes its name, total, due date, or notes. Payments aren't affected.
-- **Deleting a payment** (hover over it in the payment history) puts the money back in the account it came from. Deleting the matching transaction on the Transactions page does the same thing.
-- **Deleting a fee** removes the tracker but keeps its payments as ordinary Education expenses, so your balances and history stay correct.
+Edit and delete are in the **⋯** menu on each card and each payment.
+
+- **Deleting a payment** puts the money back in the account it came from. You can **Undo** it for 6 seconds. Deleting the matching transaction on the Transactions page does the same thing.
+- **Deleting a fee** asks first. It removes the tracker but keeps its payments as ordinary Education expenses, so your balances and history stay correct.
 
 Related: [[Transactions]] · [[Accounts]] · [[Budgets]]

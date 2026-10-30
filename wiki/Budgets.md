@@ -28,9 +28,11 @@ The pie chart on the right shows how your budget is allocated across categories.
 
 The arrows beside the month name step backward and forward. Each month is independent, so you can plan ahead or review a past month without affecting anything else.
 
-## Removing a budget
+## Editing and deleting a budget
 
-Hover over a budget and click the trash icon. Removing a budget only clears the limit — your transactions and spending history are untouched.
+Click a budget to change its amount. The **⋯** menu on each budget has **Edit** and **Delete**.
+
+Deleting a budget only clears the limit; your transactions and spending history are untouched. A **Budget deleted** message appears with an **Undo** button for 6 seconds.
 
 ## Tips
 

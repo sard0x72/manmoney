@@ -3,7 +3,8 @@ import { Plus, Trash2, Repeat, Calendar, Pencil, Pause, Play } from 'lucide-reac
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
-import { Modal } from '../ui/Modal';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { useAddRequest } from '../../lib/useAddRequest';
 import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
@@ -166,12 +167,12 @@ export function Recurring() {
     try {
       await api.recurring.delete(deleteId);
       showToast('Recurring deleted');
-      setDeleteId(null);
       fetchRecurring();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
   };
 
   const openEdit = (r?: RecurringTransaction) => { setEditItem(r); setShowForm(true); };
+  useAddRequest('recurring', () => openEdit());
 
   const monthlyOut = recurring.filter(r => r.is_active && r.transaction_type === 'expense')
     .reduce((s, r) => s + r.amount * ({ daily: 30, weekly: 4.3, monthly: 1, yearly: 1/12 }[r.frequency] ?? 1), 0);
@@ -286,11 +287,10 @@ export function Recurring() {
           onClose={() => { setShowForm(false); setEditItem(undefined); }} />
       )}
 
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete recurring" size="sm"
-        footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">Stops future entries. Entries already added stay.</p>
-      </Modal>
+      {deleteId && (
+        <ConfirmDialog title="Delete recurring" onConfirm={handleDelete} onClose={() => setDeleteId(null)}
+          body="Stops future entries. Entries already added stay." />
+      )}
     </div>
   );
 }

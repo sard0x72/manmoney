@@ -3,7 +3,8 @@ import { Plus, Pencil, Trash2, HandCoins, ChevronDown, ChevronRight, ArrowDownLe
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
-import { Modal } from '../ui/Modal';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { useAddRequest } from '../../lib/useAddRequest';
 import { FormSheet, useDirty } from '../ui/FormSheet';
 import { Segmented } from '../ui/Segmented';
 import { RowMenu } from '../ui/RowMenu';
@@ -468,7 +469,7 @@ function LoanRow({ loan, friendName, returns, onEdit, onDelete, onReturn, onDele
 function FriendCard({ friend, onEdit, onDelete, onReturn, onDeleteReturn, onNewLoan, onSplitBill, onCancelOut }: {
   friend: Friend;
   onEdit: (l: Loan) => void;
-  onDelete: (l: Loan) => void;
+  onDelete: (l: Loan, returns: LoanRepayment[]) => void;
   onReturn: (l: Loan) => void;
   onDeleteReturn: (r: LoanRepayment) => void;
   onNewLoan: () => void;
@@ -478,6 +479,7 @@ function FriendCard({ friend, onEdit, onDelete, onReturn, onDeleteReturn, onNewL
   const [open, setOpen] = useState(false);
   const [showSettled, setShowSettled] = useState(false);
   const [returns, setReturns] = useState<Record<string, LoanRepayment[]>>({});
+  const pendingDeletes = useAppStore(s => s.pendingDeletes);
 
   // Refetch when a loan is added or removed, or its returns change.
   const loansKey = friend.loans.map(l => `${l.id}:${l.returned}`).join(',');
@@ -556,8 +558,8 @@ function FriendCard({ friend, onEdit, onDelete, onReturn, onDeleteReturn, onNewL
           )}
 
           {visibleLoans.map(l => (
-            <LoanRow key={l.id} loan={l} friendName={name} returns={returns[l.id] ?? []}
-              onEdit={() => onEdit(l)} onDelete={() => onDelete(l)} onReturn={() => onReturn(l)} onDeleteReturn={onDeleteReturn} />
+            <LoanRow key={l.id} loan={l} friendName={name} returns={(returns[l.id] ?? []).filter(r => !pendingDeletes.has(r.id))}
+              onEdit={() => onEdit(l)} onDelete={() => onDelete(l, returns[l.id] ?? [])} onReturn={() => onReturn(l)} onDeleteReturn={onDeleteReturn} />
           ))}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
             {openLoans.length > 0 && settledLoans.length > 0 ? (
@@ -620,15 +622,15 @@ function CancelOutSummary({ friend }: { friend: Friend }) {
 }
 
 export function Loans() {
-  const { loans, fetchLoans, fetchAccounts, fetchDashboard, fetchTransactions, showToast } = useAppStore();
+  const { loans: allLoans, fetchLoans, fetchAccounts, fetchDashboard, fetchTransactions, showToast, pendingDeletes, deleteWithUndo } = useAppStore();
+  const loans = allLoans.filter(l => !pendingDeletes.has(l.id));
   const [showForm, setShowForm] = useState(false);
   const [editLoan, setEditLoan] = useState<Loan | undefined>();
   const [newLoanPerson, setNewLoanPerson] = useState<string | undefined>();
   const [returnLoan, setReturnLoan] = useState<Loan | undefined>();
-  const [deleteLoan, setDeleteLoan] = useState<Loan | undefined>();
-  const [deleteReturn, setDeleteReturn] = useState<LoanRepayment | undefined>();
+  const [confirmLoan, setConfirmLoan] = useState<{ loan: Loan; paybacks: number; settled: boolean } | undefined>();
+  const [undoSettle, setUndoSettle] = useState<LoanRepayment | undefined>();
   const [cancelOutKey, setCancelOutKey] = useState<string | undefined>();
-  const [cancelling, setCancelling] = useState(false);
   const [showSettled, setShowSettled] = useState(false);
 
   useEffect(() => { fetchLoans(); }, []);
@@ -637,28 +639,40 @@ export function Loans() {
   // Shared bills also add an expense, so transactions refresh with them.
   const refresh = () => { fetchLoans(); fetchAccounts(); fetchDashboard(); fetchTransactions({ limit: 100 }); };
 
-  const handleDeleteLoan = async () => {
-    if (!deleteLoan) return;
+  const deleteLoanNow = async (l: Loan) => {
     try {
-      await api.loans.delete(deleteLoan.id);
+      await api.loans.delete(l.id);
       showToast('Loan deleted');
-      setDeleteLoan(undefined);
       refresh();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
   };
 
-  const handleDeleteReturn = async () => {
-    if (!deleteReturn) return;
+  // A plain loan goes with an Undo toast. One that takes paybacks, a settle or a
+  // shared-bill expense with it asks first, and says what goes.
+  const handleDeleteLoan = (l: Loan, returns: LoanRepayment[]) => {
+    if (l.returned > 0.000001 || returns.length > 0 || l.transaction_id) {
+      setConfirmLoan({ loan: l, paybacks: returns.filter(r => !r.offset_id).length, settled: returns.some(r => !!r.offset_id) });
+      return;
+    }
+    deleteWithUndo({ id: l.id, label: 'Loan', commit: async () => { await api.loans.delete(l.id); refresh(); } });
+  };
+
+  const handleDeleteReturn = (r: LoanRepayment) => {
+    if (r.offset_id) { setUndoSettle(r); return; }
+    deleteWithUndo({ id: r.id, label: 'Payback', commit: async () => { await api.loans.deleteRepayment(r.id); refresh(); } });
+  };
+
+  const undoSettleNow = async () => {
+    if (!undoSettle) return;
     try {
-      await api.loans.deleteRepayment(deleteReturn.id);
-      showToast(deleteReturn.offset_id ? 'Cancel-out undone' : 'Deleted');
-      setDeleteReturn(undefined);
+      await api.loans.deleteRepayment(undoSettle.id);
       refresh();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
   };
 
   const openForm = (loan?: Loan, person?: string) => { setEditLoan(loan); setNewLoanPerson(person); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditLoan(undefined); setNewLoanPerson(undefined); };
+  useAddRequest('loans', () => openForm());
   // undefined: closed; '' : open with no friend picked yet.
   const [billPerson, setBillPerson] = useState<string | undefined>();
   const openBill = (person?: string) => setBillPerson(person ?? '');
@@ -670,14 +684,11 @@ export function Loans() {
 
   const handleCancelOut = async () => {
     if (!cancelOutFriend) return;
-    setCancelling(true);
     try {
       const amount = await api.loans.offset(cancelOutFriend.loans.map(l => l.id), todayISO());
-      showToast(`Cancelled out ${formatCurrency(amount)} with ${cancelOutFriend.name}`);
-      setCancelOutKey(undefined);
+      showToast(`Settled ${formatCurrency(amount)}`);
       refresh();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
-    finally { setCancelling(false); }
   };
 
   const youOwe = friends.filter(f => !isZero(f.net) && f.net < 0).sort(byAmount);
@@ -695,9 +706,9 @@ export function Loans() {
   const card = (f: Friend) => (
     <FriendCard key={f.key} friend={f}
       onEdit={l => openForm(l)}
-      onDelete={setDeleteLoan}
+      onDelete={handleDeleteLoan}
       onReturn={setReturnLoan}
-      onDeleteReturn={setDeleteReturn}
+      onDeleteReturn={handleDeleteReturn}
       onNewLoan={() => openForm(undefined, f.name)}
       onSplitBill={() => openBill(f.name)}
       onCancelOut={() => setCancelOutKey(f.key)}
@@ -780,39 +791,33 @@ export function Loans() {
         <ReturnForm key={returnLoan.id} loan={returnLoan} onSaved={refresh} onClose={() => setReturnLoan(undefined)} />
       )}
 
-      <Modal open={!!cancelOutFriend} onClose={() => setCancelOutKey(undefined)} title={cancelOutFriend ? `Cancel out with ${cancelOutFriend.name}` : ''} size="sm"
-        footer={<>
-          <button onClick={() => setCancelOutKey(undefined)} className="btn-secondary">Not now</button>
-          <button onClick={handleCancelOut} disabled={cancelling} className="btn-primary">
-            {cancelling ? 'Saving…' : cancelOutFriend ? `Cancel out ${formatCurrency(cancelOutFriend.cancellable)}` : ''}
-          </button>
-        </>}
-      >
-        {cancelOutFriend && <CancelOutSummary friend={cancelOutFriend} />}
-      </Modal>
+      {cancelOutFriend && (
+        <ConfirmDialog title={`Settle both ways with ${cancelOutFriend.name}`} danger={false}
+          confirmLabel={`Settle ${formatCurrency(cancelOutFriend.cancellable)}`}
+          onConfirm={handleCancelOut} onClose={() => setCancelOutKey(undefined)}
+          body={<CancelOutSummary friend={cancelOutFriend} />} />
+      )}
 
-      <Modal open={!!deleteLoan} onClose={() => setDeleteLoan(undefined)} title="Delete Loan" size="sm"
-        footer={<><button onClick={() => setDeleteLoan(undefined)} className="btn-secondary">Cancel</button><button onClick={handleDeleteLoan} className="btn-danger">Delete</button></>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">
-          Delete this loan with {deleteLoan?.person}? Every balance change it made, including its returns, will be undone.
-          {deleteLoan?.transaction_id && <> The {formatCurrency(deleteLoan.expense_amount ?? 0)} {deleteLoan.category_name ?? ''} expense from the same bill is deleted too.</>}
-          If it was cancelled out against other loans, that cancel-out is undone too.
-        </p>
-      </Modal>
+      {confirmLoan && (
+        <ConfirmDialog title="Delete loan" onConfirm={() => deleteLoanNow(confirmLoan.loan)} onClose={() => setConfirmLoan(undefined)}
+          body={<>Deletes this loan{describeLoanDelete(confirmLoan.loan, confirmLoan.paybacks, confirmLoan.settled)}. Every balance change goes back.</>} />
+      )}
 
-      <Modal open={!!deleteReturn} onClose={() => setDeleteReturn(undefined)} title={deleteReturn?.offset_id ? 'Undo Cancel-out' : 'Delete Return'} size="sm"
-        footer={<>
-          <button onClick={() => setDeleteReturn(undefined)} className="btn-secondary">Cancel</button>
-          <button onClick={handleDeleteReturn} className="btn-danger">{deleteReturn?.offset_id ? 'Undo' : 'Delete'}</button>
-        </>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">
-          {deleteReturn?.offset_id
-            ? 'Undo this cancel-out? It is removed from every loan it touched, so both sides open up again. Account balances don\'t change.'
-            : <>Delete this {deleteReturn ? formatCurrency(deleteReturn.amount) : ''} return? Its account balance change will be undone.</>}
-        </p>
-      </Modal>
+      {undoSettle && (
+        <ConfirmDialog title="Undo settle" confirmLabel="Undo settle" danger={false}
+          onConfirm={undoSettleNow} onClose={() => setUndoSettle(undefined)}
+          body="Reopens what was settled, on both sides. No money moves." />
+      )}
     </div>
   );
+}
+
+/** ", 2 paybacks and your $50 Food expense": what goes along with a loan. */
+function describeLoanDelete(loan: Loan, paybacks: number, settled: boolean): string {
+  const parts: string[] = [];
+  if (paybacks > 0) parts.push(`${paybacks} payback${paybacks === 1 ? '' : 's'}`);
+  if (loan.transaction_id && loan.expense_amount) parts.push(`your ${formatCurrency(loan.expense_amount)} ${loan.category_name ?? ''} expense`.replace(/\s+expense$/, ' expense'));
+  if (settled) parts.push('its settle with your other loans');
+  if (parts.length === 0) return '';
+  return `, ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`}`;
 }

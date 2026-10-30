@@ -74,10 +74,10 @@ Friends are matched by name, ignoring capital letters and extra spaces, so "Ali"
 
 ## Editing and deleting
 
-Edit and delete are in the ⋯ menu at the end of each loan. For a payback or return, hover over it to see its ⋯ menu.
+Edit and delete are in the ⋯ menu at the end of each loan and each payback.
 
 - **Editing** lets you change the name, amount, return-by date, and note. Changing the amount adjusts the original account by the difference. Which way the money went, the account, and the date are fixed — to change those, delete the loan and add it again.
-- **Deleting a return** undoes its balance change.
-- **Deleting a loan** undoes everything it did: the original amount and all its returns.
+- **Deleting a payback** undoes its balance change. You can **Undo** it for 6 seconds.
+- **Deleting a loan** undoes everything it did. A plain loan can be brought back with **Undo**. If the loan has paybacks, was cancelled out, or came from a shared bill, ManMoney asks first and lists what goes with it.
 
 Related: [[Accounts]] · [[Dashboard]]

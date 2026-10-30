@@ -54,7 +54,14 @@ let currencyChosen = savedCurrency !== null;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let toastSeq = 0;
 
-export type QuickAddKind = 'transaction';
+// The delete waiting for its Undo window to pass. Only one at a time: starting
+// another delete commits this one straight away.
+const UNDO_MS = 6000;
+let pendingDelete: { id: string; commit: () => Promise<void>; timer: ReturnType<typeof setTimeout> } | null = null;
+
+export type ToastType = 'success' | 'error' | 'info';
+export interface ToastAction { label: string; run: () => void }
+export type QuickAddKind = 'transaction' | 'expense' | 'income';
 
 interface AppState {
   // Navigation
@@ -107,14 +114,27 @@ interface AppState {
   fetchDashboard: () => Promise<void>;
 
   // Toast
-  toast: { id: number; message: string; type: 'success' | 'error' | 'info' } | null;
-  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  toast: { id: number; message: string; type: ToastType; action?: ToastAction } | null;
+  showToast: (message: string, type?: ToastType, action?: ToastAction) => void;
   clearToast: () => void;
+
+  /**
+   * Hides an item at once and deletes it for real 6 s later, unless Undo is
+   * pressed. Lists hide anything in `pendingDeletes`. If the app closes inside
+   * the window nothing is deleted, which is the safe way round.
+   */
+  pendingDeletes: Set<string>;
+  deleteWithUndo: (opts: { id: string; label: string; commit: () => Promise<void> }) => void;
 
   // The one add form that can open from anywhere
   quickAdd: { kind: QuickAddKind } | null;
   openQuickAdd: (kind: QuickAddKind) => void;
   closeQuickAdd: () => void;
+
+  // Asks a page to open its own add form once it's showing (command palette)
+  requestAdd: Page | null;
+  addOn: (page: Page) => void;
+  clearRequestAdd: () => void;
 
   // Bumped after a save from outside the page (quick add), so open lists reload with their own filters
   dataVersion: number;
@@ -305,19 +325,58 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   toast: null,
-  showToast: (message, type = 'success') => {
+  showToast: (message, type = 'success', action) => {
     clearTimeout(toastTimer);
-    set({ toast: { id: ++toastSeq, message, type } });
-    toastTimer = setTimeout(() => set({ toast: null }), 3500);
+    set({ toast: { id: ++toastSeq, message, type, action } });
+    toastTimer = setTimeout(() => set({ toast: null }), action ? UNDO_MS : 3500);
   },
   clearToast: () => {
     clearTimeout(toastTimer);
     set({ toast: null });
   },
 
+  pendingDeletes: new Set(),
+  deleteWithUndo: ({ id, label, commit }) => {
+    const unhide = () => set(s => {
+      const next = new Set(s.pendingDeletes);
+      next.delete(id);
+      return { pendingDeletes: next };
+    });
+    const run = async () => {
+      pendingDelete = null;
+      try { await commit(); }
+      catch (e: any) { get().showToast(e?.toString() ?? 'Error', 'error'); }
+      finally { unhide(); }
+    };
+
+    if (pendingDelete) {
+      clearTimeout(pendingDelete.timer);
+      const previous = pendingDelete;
+      pendingDelete = null;
+      previous.commit();
+    }
+    set(s => ({ pendingDeletes: new Set(s.pendingDeletes).add(id) }));
+    const timer = setTimeout(run, UNDO_MS);
+    pendingDelete = { id, timer, commit: run };
+    get().showToast(`${label} deleted`, 'success', {
+      label: 'Undo',
+      run: () => {
+        if (pendingDelete?.id !== id) return;
+        clearTimeout(pendingDelete.timer);
+        pendingDelete = null;
+        unhide();
+        get().clearToast();
+      },
+    });
+  },
+
   quickAdd: null,
   openQuickAdd: (kind) => set({ quickAdd: { kind } }),
   closeQuickAdd: () => set({ quickAdd: null }),
+
+  requestAdd: null,
+  addOn: (page) => { get().setPage(page); set({ requestAdd: page }); },
+  clearRequestAdd: () => set({ requestAdd: null }),
 
   dataVersion: 0,
   bumpData: () => set(s => ({ dataVersion: s.dataVersion + 1 })),

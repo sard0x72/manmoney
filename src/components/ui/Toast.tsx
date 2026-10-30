@@ -27,6 +27,12 @@ export function Toast() {
       >
         {icons[toast.type]}
         <p className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>{toast.message}</p>
+        {toast.action && (
+          <button onClick={toast.action.run} className="btn-ghost"
+            style={{ padding: '3px 8px', fontSize: 13, fontWeight: 600, color: 'var(--clay-ink)' }}>
+            {toast.action.label}
+          </button>
+        )}
         <button
           onClick={clearToast}
           aria-label="Dismiss"

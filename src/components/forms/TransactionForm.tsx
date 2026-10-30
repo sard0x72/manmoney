@@ -13,14 +13,21 @@ export const methodLabel = (m: string) => m.charAt(0).toUpperCase() + m.slice(1)
 
 type Kind = 'income' | 'expense';
 
-export function TransactionForm({ tx, onClose, onSaved }: { tx?: Transaction; onClose: () => void; onSaved: () => void }) {
+export function TransactionForm({ tx, initialType, onClose, onSaved }: {
+  tx?: Transaction;
+  /** Type to start with when adding, e.g. from the Dashboard's Income button. */
+  initialType?: Kind;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { accounts, categories, showToast } = useAppStore();
   const ofType = (t: Kind) => categories.filter(c => c.category_type === t);
-  const [type, setType] = useState<Kind>(tx?.transaction_type ?? 'expense');
+  const startType: Kind = tx?.transaction_type ?? initialType ?? 'expense';
+  const [type, setType] = useState<Kind>(startType);
   const [amount, setAmount] = useState(tx?.amount?.toString() ?? '');
   const [date, setDate] = useState(tx?.date ?? todayISO());
   const [accountId, setAccountId] = useState(tx?.account_id ?? accounts[0]?.id ?? '');
-  const [categoryId, setCategoryId] = useState(tx?.category_id ?? ofType(tx?.transaction_type ?? 'expense')[0]?.id ?? '');
+  const [categoryId, setCategoryId] = useState(tx?.category_id ?? ofType(startType)[0]?.id ?? '');
   const [payee, setPayee] = useState(tx?.payee ?? '');
   const [notes, setNotes] = useState(tx?.notes ?? '');
   const [method, setMethod] = useState(tx?.payment_method ?? 'cash');

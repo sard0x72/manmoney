@@ -29,7 +29,7 @@ The header summarizes all goals together: total saved across every goal, out of 
 
 Goals don't update themselves from your transactions — they're a deliberate, manual tracker. When you move money into savings, edit the goal and bump its saved amount. This keeps goals separate from your day-to-day account balances, which is usually what you want: your "saved so far" reflects your intent, not just whatever happens to be sitting in an account.
 
-Editing and deleting work from the buttons that appear when you hover over a goal card.
+Edit and delete a goal from the **⋯** menu on its card. A deleted goal can be brought back with **Undo** for 6 seconds.
 
 ## Tips
 
