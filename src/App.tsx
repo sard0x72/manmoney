@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import { Monitor } from 'lucide-react';
 import { useAppStore } from './store/useAppStore';
 import { Sidebar } from './components/layout/Sidebar';
 import { Toast } from './components/ui/Toast';
 import { QuickAdd } from './components/forms/QuickAdd';
+import { CommandPalette } from './components/ui/CommandPalette';
 import { Dashboard } from './components/pages/Dashboard';
 import { Transactions } from './components/pages/Transactions';
 import { Budgets } from './components/pages/Budgets';
@@ -60,11 +61,29 @@ export default function App() {
 }
 
 function AppShell() {
-  const { currentPage, fetchAll, loading } = useAppStore();
+  const { currentPage, fetchAll, loading, openQuickAdd } = useAppStore();
+  const [palette, setPalette] = useState(false);
 
   useEffect(() => {
     fetchAll();
   }, []);
+
+  // Ctrl/⌘+N adds a transaction and Ctrl/⌘+K opens the command palette, from
+  // anywhere except while typing in a field.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      const key = e.key.toLowerCase();
+      if (key !== 'n' && key !== 'k') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
+      e.preventDefault();
+      if (key === 'n') openQuickAdd('transaction');
+      else setPalette(p => !p);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [openQuickAdd]);
 
   const PageComponent = PAGE_MAP[currentPage] ?? Dashboard;
 
@@ -84,6 +103,7 @@ function AppShell() {
         )}
       </main>
       <QuickAdd />
+      {palette && <CommandPalette onClose={() => setPalette(false)} />}
       <Toast />
     </div>
   );

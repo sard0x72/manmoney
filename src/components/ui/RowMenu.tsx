@@ -29,7 +29,9 @@ export function RowMenu({ items }: { items: RowMenuItem[] }) {
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content align="end" sideOffset={4} onClick={e => e.stopPropagation()} style={{
+        {/* Items usually open a dialog; returning focus to the trigger would steal it from the dialog's first field. */}
+        <DropdownMenu.Content align="end" sideOffset={4} onClick={e => e.stopPropagation()}
+          onCloseAutoFocus={e => { if (document.querySelector('[role=dialog]')) e.preventDefault(); }} style={{
           zIndex: 60, minWidth: 180, maxWidth: 260, padding: 4, background: 'var(--surface)', border: '1px solid var(--line)',
           borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)',
         }}>

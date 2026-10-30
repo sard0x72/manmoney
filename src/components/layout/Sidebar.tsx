@@ -21,6 +21,8 @@ function NavButton({ label, Icon, active, onClick, compact }: {
     <button
       onClick={onClick}
       title={compact ? label : undefined}
+      aria-label={label}
+      aria-current={active ? 'page' : undefined}
       style={{
         position: 'relative',
         width: '100%',

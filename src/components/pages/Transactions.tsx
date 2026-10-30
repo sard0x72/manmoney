@@ -3,7 +3,8 @@ import { Plus, Search, Trash2, Pencil, X, ReceiptText } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../lib/utils';
-import { Modal } from '../ui/Modal';
+import { RowMenu } from '../ui/RowMenu';
+import { useAddRequest } from '../../lib/useAddRequest';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { PageHeader } from '../layout/PageHeader';
@@ -11,14 +12,16 @@ import { TransactionForm } from '../forms/TransactionForm';
 import type { Transaction } from '../../types';
 
 export function Transactions() {
-  const { transactions, transactionsLoading, fetchTransactions, fetchDashboard, fetchAccounts, showToast, categories, accounts, dataVersion } = useAppStore();
+  const { transactions: all, transactionsLoading, fetchTransactions, fetchDashboard, fetchAccounts, categories, accounts, dataVersion, pendingDeletes, deleteWithUndo } = useAppStore();
+  const transactions = all.filter(t => !pendingDeletes.has(t.id));
   const [showForm, setShowForm] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | undefined>();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterAccount, setFilterAccount] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const openForm = (t?: Transaction) => { setEditTx(t); setShowForm(true); };
+  useAddRequest('transactions', () => openForm());
 
   const refresh = useCallback(() => {
     fetchTransactions({ limit: 200, search: search || undefined, transaction_type: filterType || undefined, account_id: filterAccount || undefined, category_id: filterCategory || undefined });
@@ -31,15 +34,10 @@ export function Transactions() {
     return () => clearTimeout(t);
   }, [search, filterType, filterAccount, filterCategory, dataVersion]);
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try {
-      await api.transactions.delete(deleteId);
-      showToast('Transaction deleted');
-      setDeleteId(null);
-      refresh();
-    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
-  };
+  const handleDelete = (t: Transaction) => deleteWithUndo({
+    id: t.id, label: 'Transaction',
+    commit: async () => { await api.transactions.delete(t.id); refresh(); },
+  });
 
   const hasFilters = search || filterType || filterAccount || filterCategory;
 
@@ -50,8 +48,8 @@ export function Transactions() {
         title="Transactions"
         lead="Every dollar in and out. Search, filter, and read down the column."
         actions={
-          <button onClick={() => { setEditTx(undefined); setShowForm(true); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <Plus size={15} /> Add Transaction
+          <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <Plus size={15} /> Add transaction
           </button>
         }
       />
@@ -107,7 +105,7 @@ export function Transactions() {
               title="Nothing matches"
               description="Try a different search or clear your filters."
               action={hasFilters ? <button onClick={() => { setSearch(''); setFilterType(''); setFilterAccount(''); setFilterCategory(''); }} className="btn-secondary">Clear filters</button>
-                : <button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add Transaction</button>}
+                : <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add transaction</button>}
             />
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -126,7 +124,9 @@ export function Transactions() {
               </thead>
               <tbody>
                 {transactions.map(t => (
-                  <tr key={t.id} className="group" style={{ borderBottom: '1px solid var(--line)', transition: 'background 180ms' }}
+                  <tr key={t.id} className="group" tabIndex={0} onClick={() => openForm(t)}
+                    onKeyDown={e => { if (e.key === 'Enter' && e.target === e.currentTarget) openForm(t); }}
+                    style={{ borderBottom: '1px solid var(--line)', transition: 'background 180ms', cursor: 'pointer' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}
                   >
@@ -176,25 +176,11 @@ export function Transactions() {
                         {formatCurrency(t.amount)}
                       </span>
                     </td>
-                    <td style={{ padding: '13px 12px' }}>
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
-                        <button
-                          onClick={() => { setEditTx(t); setShowForm(true); }}
-                          style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 5, borderRadius: 6, display: 'flex' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--paper-sunk)'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteId(t.id)}
-                          style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 5, borderRadius: 6, display: 'flex' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                    <td style={{ padding: '13px 12px', width: 36 }}>
+                      <RowMenu items={[
+                        { label: 'Edit', icon: <Pencil size={13} />, onSelect: () => openForm(t) },
+                        { label: 'Delete', icon: <Trash2 size={13} />, onSelect: () => handleDelete(t), danger: true },
+                      ]} />
                     </td>
                   </tr>
                 ))}
@@ -205,14 +191,8 @@ export function Transactions() {
       </div>
 
       {showForm && (
-        <TransactionForm tx={editTx} onSaved={refresh} onClose={() => { setShowForm(false); setEditTx(undefined); }} />
+        <TransactionForm key={editTx?.id ?? 'new'} tx={editTx} onSaved={refresh} onClose={() => { setShowForm(false); setEditTx(undefined); }} />
       )}
-
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Transaction" size="sm"
-        footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">Are you sure? This will reverse the account balance change.</p>
-      </Modal>
     </div>
   );
 }

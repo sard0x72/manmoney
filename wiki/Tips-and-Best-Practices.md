@@ -20,10 +20,26 @@ The app rewards a little consistency. None of these are rules — they're habits
 - **Watch trends, not single months.** One expensive month is noise; a direction over several months is signal.
 - **Use tags for detail categories can't capture.** Tag a whole trip or project across many categories, then search the tag later. See [[Transactions]].
 
+## Work faster with the keyboard
+
+| Keys | What it does |
+|---|---|
+| **Ctrl+N** (**⌘N** on Mac) | Add a transaction, from any page |
+| **Ctrl+K** (**⌘K** on Mac) | Open the command palette: type a few letters to go to a page or start an action, like "budget" for **Add budget** |
+| **Enter** | Save the form you're in |
+| **Esc** | Close the form. If you've typed something, ManMoney asks before throwing it away |
+| **↑ ↓** then **Enter** | Pick a command in the palette |
+
+The shortcuts don't fire while you're typing in a field.
+
+## Deleting is safe
+
+Most deletes happen at once and show an **Undo** button for 6 seconds. Only deletes that take other things with them, like a loan with paybacks, ask first, and they say exactly what goes.
+
 ## Stay in control of your data
 
-- **Back up before big changes.** A JSON backup from [[Settings and Data]] takes seconds.
-- **Keep a copy of the database file.** The `manmoney.db` file is your complete dataset; copying it is the most reliable backup and the way to move between machines.
+- **Back up before big changes.** A **Backup** from [[Settings and Data]] takes seconds and holds everything.
+- **Keep a copy of the database file.** The `manmoney.db` file is your complete dataset; copying it is the most reliable backup.
 
 ## Track what matters to you
 

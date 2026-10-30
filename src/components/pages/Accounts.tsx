@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2, Wallet, Building2, CreditCard, TrendingUp, ArrowR
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
-import { Modal } from '../ui/Modal';
+import { useAddRequest } from '../../lib/useAddRequest';
 import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
@@ -133,11 +133,11 @@ function MergeAccountForm({ from, usage, onSaved, onClose }: { from: Account; us
 }
 
 export function Accounts() {
-  const { accounts, fetchAccounts, fetchDashboard, showToast } = useAppStore();
+  const { accounts: all, fetchAccounts, fetchDashboard, pendingDeletes, deleteWithUndo } = useAppStore();
+  const accounts = all.filter(a => !pendingDeletes.has(a.id));
   const [showForm, setShowForm] = useState(false);
   const [editAcct, setEditAcct] = useState<Account | undefined>();
   const [mergeAcct, setMergeAcct] = useState<Account | undefined>();
-  const [deleteAcct, setDeleteAcct] = useState<Account | undefined>();
   const [usage, setUsage] = useState<Record<string, AccountUsage>>({});
 
   const loadUsage = () => api.accounts.usage()
@@ -147,17 +147,14 @@ export function Accounts() {
 
   useEffect(() => { fetchAccounts(); loadUsage(); }, []);
 
-  const handleDelete = async () => {
-    if (!deleteAcct) return;
-    try {
-      await api.accounts.delete(deleteAcct.id);
-      showToast('Account deleted');
-      setDeleteAcct(undefined);
-      refresh();
-    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
-  };
+  // Only an unused account can be deleted, so nothing cascades and Undo is enough.
+  const handleDelete = (a: Account) => deleteWithUndo({
+    id: a.id, label: 'Account',
+    commit: async () => { await api.accounts.delete(a.id); refresh(); },
+  });
 
   const openEdit = (a?: Account) => { setEditAcct(a); setShowForm(true); };
+  useAddRequest('accounts', () => openEdit());
 
   const net = accounts.reduce((s, a) => s + a.balance, 0);
   const assets = accounts.filter(a => a.balance >= 0).reduce((s, a) => s + a.balance, 0);
@@ -257,7 +254,7 @@ export function Accounts() {
                           disabled: accounts.length < 2, hint: 'Add another account first',
                         },
                         {
-                          label: 'Delete', icon: <Trash2 size={13} />, onSelect: () => setDeleteAcct(a), danger: true,
+                          label: 'Delete', icon: <Trash2 size={13} />, onSelect: () => handleDelete(a), danger: true,
                           disabled: entries > 0, hint: `Has ${entries} ${entries === 1 ? 'entry' : 'entries'}. Move them first.`,
                         },
                       ]} />
@@ -279,15 +276,6 @@ export function Accounts() {
         <MergeAccountForm key={mergeAcct.id} from={mergeAcct} usage={usage[mergeAcct.id]} onSaved={refresh}
           onClose={() => setMergeAcct(undefined)} />
       )}
-
-      <Modal open={!!deleteAcct} onClose={() => setDeleteAcct(undefined)} title="Delete account" size="sm"
-        footer={<><button onClick={() => setDeleteAcct(undefined)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">
-          Deletes {deleteAcct?.name}. Nothing uses it{deleteAcct && Math.abs(deleteAcct.balance) > 0.005
-            ? `, but its ${formatCurrency(deleteAcct.balance)} balance leaves your net worth` : ''}.
-        </p>
-      </Modal>
     </div>
   );
 }

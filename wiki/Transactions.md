@@ -34,10 +34,12 @@ Search and filters update the list as you type, with a short delay so it stays r
 
 ## Editing and deleting
 
-Hover over a row to reveal the edit and delete buttons.
+Click a row to edit it. The **⋯** menu at the end of each row has **Edit** and **Delete**.
 
 - **Editing** a transaction reverses its previous effect on balances and applies the new values, so your accounts stay correct no matter how much you change.
-- **Deleting** a transaction reverses its balance effect and removes it. The confirmation dialog reminds you that the account balance will change back.
+- **Deleting** a transaction removes it right away and shows **Transaction deleted** with an **Undo** button. Click **Undo** within 6 seconds to bring it back. After that, the delete is final and its balance effect is reversed.
+
+Press **Ctrl+N** (**⌘N** on Mac) anywhere to add a transaction. See [[Tips and Best Practices]] for all shortcuts.
 
 ## Tips
 

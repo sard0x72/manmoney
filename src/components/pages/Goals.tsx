@@ -3,7 +3,8 @@ import { Plus, Pencil, Trash2, Target } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../lib/utils';
-import { Modal } from '../ui/Modal';
+import { RowMenu } from '../ui/RowMenu';
+import { useAddRequest } from '../../lib/useAddRequest';
 import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
@@ -90,22 +91,19 @@ function GoalRing({ pct, color }: { pct: number; color: string }) {
 }
 
 export function Goals() {
-  const { goals, fetchGoals, showToast } = useAppStore();
+  const { goals: all, fetchGoals, pendingDeletes, deleteWithUndo } = useAppStore();
+  const goals = all.filter(g => !pendingDeletes.has(g.id));
   const [showForm, setShowForm] = useState(false);
   const [editGoal, setEditGoal] = useState<SavingsGoal | undefined>();
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const openForm = (g?: SavingsGoal) => { setEditGoal(g); setShowForm(true); };
+  useAddRequest('goals', () => openForm());
 
   useEffect(() => { fetchGoals(); }, []);
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try {
-      await api.goals.delete(deleteId);
-      showToast('Goal deleted');
-      setDeleteId(null);
-      fetchGoals();
-    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
-  };
+  const handleDelete = (g: SavingsGoal) => deleteWithUndo({
+    id: g.id, label: 'Goal',
+    commit: async () => { await api.goals.delete(g.id); await fetchGoals(); },
+  });
 
   const totalTarget = goals.reduce((s, g) => s + g.target_amount, 0);
   const totalSaved = goals.reduce((s, g) => s + g.current_amount, 0);
@@ -121,7 +119,7 @@ export function Goals() {
         title="Savings Goals"
         lead={lead}
         actions={
-          <button onClick={() => { setEditGoal(undefined); setShowForm(true); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Plus size={15} /> New Goal
           </button>
         }
@@ -134,7 +132,7 @@ export function Goals() {
               icon={<Target size={22} />}
               title="No savings goals"
               description="Create a goal to track your progress toward something you're saving for."
-              action={<button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> New Goal</button>}
+              action={<button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add goal</button>}
             />
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
@@ -169,20 +167,10 @@ export function Goals() {
                         ) : (
                           <GoalRing pct={pct} color={g.color} />
                         )}
-                        <div style={{ display: 'flex', gap: 2 }}>
-                          <button onClick={() => { setEditGoal(g); setShowForm(true); }}
-                            style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex' }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--paper-sunk)'; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}>
-                            <Pencil size={13} />
-                          </button>
-                          <button onClick={() => setDeleteId(g.id)}
-                            style={{ color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex' }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}>
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                        <RowMenu items={[
+                          { label: 'Edit', icon: <Pencil size={13} />, onSelect: () => openForm(g) },
+                          { label: 'Delete', icon: <Trash2 size={13} />, onSelect: () => handleDelete(g), danger: true },
+                        ]} />
                       </div>
                     </div>
 
@@ -227,12 +215,6 @@ export function Goals() {
           onClose={() => { setShowForm(false); setEditGoal(undefined); }}
         />
       )}
-
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Goal" size="sm"
-        footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">Permanently delete this savings goal?</p>
-      </Modal>
     </div>
   );
 }

@@ -3,7 +3,9 @@ import { Plus, Pencil, Trash2, GraduationCap, ChevronDown, ChevronRight } from '
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
-import { Modal } from '../ui/Modal';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { RowMenu } from '../ui/RowMenu';
+import { useAddRequest } from '../../lib/useAddRequest';
 import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
@@ -120,7 +122,6 @@ function PaymentForm({ fee, onSaved, onClose }: { fee: TuitionFee; onSaved: () =
   );
 }
 
-const iconBtn = { color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex' } as const;
 
 function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
   fee: TuitionFee;
@@ -131,6 +132,7 @@ function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
 }) {
   const [open, setOpen] = useState(false);
   const [payments, setPayments] = useState<TuitionPayment[]>([]);
+  const pendingDeletes = useAppStore(s => s.pendingDeletes);
 
   // Reload the history whenever the paid total changes (new or deleted payment).
   useEffect(() => {
@@ -166,16 +168,10 @@ function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
               <Plus size={13} /> Record payment
             </button>
           )}
-          <button onClick={onEdit} style={iconBtn}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--paper-sunk)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}>
-            <Pencil size={13} />
-          </button>
-          <button onClick={onDelete} style={iconBtn}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--negative)'; (e.currentTarget as HTMLElement).style.background = 'var(--negative-tint)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink-faint)'; (e.currentTarget as HTMLElement).style.background = 'none'; }}>
-            <Trash2 size={13} />
-          </button>
+          <RowMenu items={[
+            { label: 'Edit', icon: <Pencil size={13} />, onSelect: onEdit },
+            { label: 'Delete', icon: <Trash2 size={13} />, onSelect: onDelete, danger: true },
+          ]} />
         </div>
       </div>
 
@@ -218,7 +214,7 @@ function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
         <div style={{ marginTop: 8 }}>
           {payments.length === 0 ? (
             <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-faint)', padding: '6px 0' }}>No payments yet.</p>
-          ) : payments.map(p => (
+          ) : payments.filter(p => !pendingDeletes.has(p.id)).map(p => (
             <div key={p.id} className="group" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderTop: '1px solid var(--line)' }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--ink-muted)', width: 96, flexShrink: 0 }}>{formatDate(p.date)}</span>
               <span style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -227,9 +223,7 @@ function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
               <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>
                 {formatCurrency(p.amount)}
               </span>
-              <button onClick={() => onDeletePayment(p)} className="opacity-0 group-hover:opacity-100" style={iconBtn} title="Delete payment">
-                <Trash2 size={12} />
-              </button>
+              <RowMenu items={[{ label: 'Delete', icon: <Trash2 size={13} />, onSelect: () => onDeletePayment(p), danger: true }]} />
             </div>
           ))}
         </div>
@@ -239,12 +233,13 @@ function TuitionCard({ fee, onEdit, onDelete, onPay, onDeletePayment }: {
 }
 
 export function Tuition() {
-  const { tuition, fetchTuition, fetchAccounts, fetchDashboard, showToast } = useAppStore();
+  const { tuition, fetchTuition, fetchAccounts, fetchDashboard, showToast, deleteWithUndo } = useAppStore();
   const [showForm, setShowForm] = useState(false);
   const [editFee, setEditFee] = useState<TuitionFee | undefined>();
   const [payFee, setPayFee] = useState<TuitionFee | undefined>();
   const [deleteFee, setDeleteFee] = useState<TuitionFee | undefined>();
-  const [deletePayment, setDeletePayment] = useState<TuitionPayment | undefined>();
+  const openForm = (f?: TuitionFee) => { setEditFee(f); setShowForm(true); };
+  useAddRequest('tuition', () => openForm());
 
   useEffect(() => { fetchTuition(); }, []);
 
@@ -256,20 +251,15 @@ export function Tuition() {
     try {
       await api.tuition.delete(deleteFee.id);
       showToast('Tuition deleted');
-      setDeleteFee(undefined);
       fetchTuition();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
   };
 
-  const handleDeletePayment = async () => {
-    if (!deletePayment) return;
-    try {
-      await api.transactions.delete(deletePayment.id);
-      showToast('Payment deleted');
-      setDeletePayment(undefined);
-      refreshAfterPayment();
-    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
-  };
+  // A payment is an ordinary expense, so deleting it can wait for the Undo window.
+  const handleDeletePayment = (p: TuitionPayment) => deleteWithUndo({
+    id: p.id, label: 'Payment',
+    commit: async () => { await api.transactions.delete(p.id); refreshAfterPayment(); },
+  });
 
   const totalFee = tuition.reduce((s, f) => s + f.total_amount, 0);
   const totalPaid = tuition.reduce((s, f) => s + f.paid, 0);
@@ -286,29 +276,29 @@ export function Tuition() {
         title="Tuition"
         lead={lead}
         actions={
-          <button onClick={() => { setEditFee(undefined); setShowForm(true); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={15} /> Add Tuition
+          <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={15} /> Add tuition
           </button>
         }
       />
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth: 'var(--content-max)', margin: '0 auto', padding: '32px 40px 56px' }}>
+        <div style={{ maxWidth: 'var(--content-max)', margin: '0 auto', padding: 'calc(32px * var(--v-rhythm)) var(--content-h-pad) 56px' }}>
           {tuition.length === 0 ? (
             <EmptyState
               icon={<GraduationCap size={22} />}
               title="No tuition yet"
               description="Add your tuition fee to track how much you've paid and how much is left."
-              action={<button onClick={() => setShowForm(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add Tuition</button>}
+              action={<button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add tuition</button>}
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {tuition.map(f => (
                 <TuitionCard key={f.id} fee={f}
-                  onEdit={() => { setEditFee(f); setShowForm(true); }}
+                  onEdit={() => openForm(f)}
                   onDelete={() => setDeleteFee(f)}
                   onPay={() => setPayFee(f)}
-                  onDeletePayment={setDeletePayment}
+                  onDeletePayment={handleDeletePayment}
                 />
               ))}
             </div>
@@ -329,21 +319,10 @@ export function Tuition() {
         <PaymentForm key={payFee.id} fee={payFee} onSaved={refreshAfterPayment} onClose={() => setPayFee(undefined)} />
       )}
 
-      <Modal open={!!deleteFee} onClose={() => setDeleteFee(undefined)} title="Delete Tuition" size="sm"
-        footer={<><button onClick={() => setDeleteFee(undefined)} className="btn-secondary">Cancel</button><button onClick={handleDeleteFee} className="btn-danger">Delete</button></>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">
-          Delete "{deleteFee?.name}"? Its payments stay in your transactions as Education expenses, so your balances won't change.
-        </p>
-      </Modal>
-
-      <Modal open={!!deletePayment} onClose={() => setDeletePayment(undefined)} title="Delete Payment" size="sm"
-        footer={<><button onClick={() => setDeletePayment(undefined)} className="btn-secondary">Cancel</button><button onClick={handleDeletePayment} className="btn-danger">Delete</button></>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">
-          Delete this {deletePayment ? formatCurrency(deletePayment.amount) : ''} payment? The amount goes back to the account it was paid from.
-        </p>
-      </Modal>
+      {deleteFee && (
+        <ConfirmDialog title="Delete tuition" onConfirm={handleDeleteFee} onClose={() => setDeleteFee(undefined)}
+          body={<>Deletes {deleteFee.name}. Its payments stay in your transactions as Education expenses, so your balances don't change.</>} />
+      )}
     </div>
   );
 }
