@@ -28,11 +28,23 @@ Editing or deleting a transaction reverses its old effect and applies the new on
 
 ## Viewing accounts
 
-The Accounts page lists your accounts with their balances, with your net worth at the top. Click an account to edit it. The **⋯** menu on each row has the other actions.
+The Accounts page lists your accounts with their balances. Click an account to edit it. The **⋯** menu on each row has the other actions.
+
+At the top:
+
+- **Net worth**: what's in your accounts, plus what friends owe you, minus what you owe them (see [[Loans]]).
+- **In accounts**: the sum of every account.
+- **Friends owe you** and **You owe friends**, when there's anything open.
+
+A balance below zero, like a credit card you owe on, shows in red with "owed" underneath.
+
+## Adjusting a balance
+
+When an account doesn't match your bank or wallet, choose **Adjust balance** in its **⋯** menu and enter the **Actual balance**. The form shows the difference, and ManMoney records it as an adjustment. Adjustments aren't income or spending, so they don't show up in [[Budgets]] or [[Analytics]].
 
 ## Editing, moving and deleting
 
-- **Edit** changes the name, type and color. The balance changes only through transactions.
+- **Edit** changes the name, type and color. To fix the balance, use **Adjust balance**.
 - **Move everything to…** moves every transaction, loan, payback and recurring entry from this account into another one, adds its balance to that account, and then deletes it. Use it to merge two accounts, or to retire one you no longer use. Nothing is counted as income or spending.
 - **Delete** is only available for an account nothing uses yet. If the account has entries, the menu says how many. Move them first with **Move everything to…**.
 

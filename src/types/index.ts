@@ -166,6 +166,14 @@ export interface Stats {
   loans: number;
 }
 
+/** What uses a category. One that's in use can't be deleted, only merged. */
+export interface CategoryUsage {
+  category_id: string;
+  transactions: number;
+  budgets: number;
+  recurring: number;
+}
+
 /** What still points at an account. One that's in use can't be deleted, only merged. */
 export interface AccountUsage {
   account_id: string;

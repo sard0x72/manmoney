@@ -24,7 +24,8 @@ Click **Add category**, choose expense or income, give it a name, and pick a col
 ## Editing and deleting
 
 - **Editing** changes the name, color and icon. The form shows whether it's an expense or income category, which is fixed once created.
-- **Deleting** works only for your own categories that nothing uses. If transactions, budgets or recurring entries use a category, ManMoney says how many and keeps it. Move those entries to another category first, then delete it.
+- **Merge into…** moves every transaction, budget and recurring entry from this category into another one of the same type, then deletes it. If both have a budget for the same month, the one you merge into keeps its own. Built-in categories can't be merged away.
+- **Delete** works only for your own categories that nothing uses. When a category is in use, the menu says how many entries use it; merge it instead. Built-in categories, marked with a small lock, can't be deleted. A deleted category can be brought back with **Undo** for 6 seconds.
 
 ## Tips
 

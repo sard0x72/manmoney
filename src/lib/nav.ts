@@ -11,18 +11,20 @@ export interface NavItem {
   desc: string;
   icon: ComponentType<{ size?: number }>;
   hideable?: HideableSection;
+  /** Setup pages, listed apart under "Manage" since they aren't daily use. */
+  manage?: boolean;
 }
 
 /** Sidebar entries, shared by the Sidebar and the Settings menu editor. Order lives in the store. */
 export const NAV_ITEMS: Record<Exclude<Page, 'settings'>, NavItem> = {
-  dashboard:    { label: 'Dashboard',    icon: LayoutDashboard, desc: 'Your overview: balances, this month, recent activity.' },
-  transactions: { label: 'Transactions', icon: ReceiptText,     desc: 'Log and browse every income and expense entry.',   hideable: 'transactions' },
-  budgets:      { label: 'Budgets',      icon: PieChart,        desc: 'Set monthly spending limits per category.',        hideable: 'budgets' },
-  analytics:    { label: 'Analytics',    icon: BarChart3,       desc: 'Charts and trends across your financial data.',    hideable: 'analytics' },
-  goals:        { label: 'Goals',        icon: Target,          desc: 'Track savings targets and milestones.',            hideable: 'goals' },
-  tuition:      { label: 'Tuition',      icon: GraduationCap,   desc: 'Track tuition fees: what you paid and what is left.', hideable: 'tuition' },
-  loans:        { label: 'Loans',        icon: HandCoins,       desc: 'Money you borrowed from or lent to friends.',      hideable: 'loans' },
-  recurring:    { label: 'Recurring',    icon: Repeat,          desc: 'Manage bills, subscriptions, and regular income.', hideable: 'recurring' },
-  categories:   { label: 'Categories',   icon: Tag,             desc: 'Organise transactions with custom categories.',   hideable: 'categories' },
-  accounts:     { label: 'Accounts',     icon: Wallet,          desc: 'Bank accounts, wallets, and credit cards.',        hideable: 'accounts' },
+  dashboard:    { label: 'Dashboard',    icon: LayoutDashboard, desc: 'Today at a glance' },
+  transactions: { label: 'Transactions', icon: ReceiptText,     desc: 'Everything you spent and earned', hideable: 'transactions' },
+  budgets:      { label: 'Budgets',      icon: PieChart,        desc: 'Monthly limits per category',     hideable: 'budgets' },
+  analytics:    { label: 'Analytics',    icon: BarChart3,       desc: 'Trends over the year',            hideable: 'analytics' },
+  goals:        { label: 'Goals',        icon: Target,          desc: 'Saving toward something',         hideable: 'goals' },
+  tuition:      { label: 'Tuition',      icon: GraduationCap,   desc: "Fees and what's left to pay",     hideable: 'tuition' },
+  loans:        { label: 'Loans',        icon: HandCoins,       desc: 'Money between you and friends',   hideable: 'loans' },
+  recurring:    { label: 'Recurring',    icon: Repeat,          desc: 'Bills and income that repeat',    hideable: 'recurring' },
+  categories:   { label: 'Categories',   icon: Tag,             desc: 'How entries are grouped',         hideable: 'categories', manage: true },
+  accounts:     { label: 'Accounts',     icon: Wallet,          desc: 'Cash, cards and banks',           hideable: 'accounts', manage: true },
 };

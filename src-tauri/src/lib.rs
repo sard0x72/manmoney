@@ -55,6 +55,10 @@ pub struct Transaction {
     pub category_color: Option<String>,
     pub category_icon: Option<String>,
     pub account_name: Option<String>,
+    /// Set when this is a payment toward a tuition fee.
+    pub tuition_id: Option<String>,
+    /// The friend, when this is your share of a bill split with them.
+    pub linked_person: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -187,6 +191,15 @@ pub struct Stats {
     pub accounts: i64,
     pub categories: i64,
     pub loans: i64,
+}
+
+/// What uses a category; a category in use can't be deleted, only merged.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CategoryUsage {
+    pub category_id: String,
+    pub transactions: i64,
+    pub budgets: i64,
+    pub recurring: i64,
 }
 
 /// What still points at an account; an account in use can't be deleted, only merged.
@@ -534,6 +547,26 @@ fn delete_account(state: State<DbState>, id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Sets an account to its real balance by recording the difference as an
+/// adjustment. Adjustments aren't income or spending, so analytics ignore them.
+/// Returns the difference.
+#[tauri::command]
+fn adjust_account_balance(state: State<DbState>, account_id: String, new_balance: f64, date: String, note: String) -> Result<f64, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let current: f64 = conn.query_row("SELECT balance FROM accounts WHERE id=?1", params![account_id], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let diff = new_balance - current;
+    if diff.abs() < 0.005 { return Ok(0.0); }
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT INTO balance_adjustments(id,account_id,amount,date,note,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
+        params![Uuid::new_v4().to_string(), account_id, diff, date, note, Utc::now().to_rfc3339()],
+    ).map_err(|e| e.to_string())?;
+    adjust_balance(&tx, &account_id, diff)?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(diff)
+}
+
 /// Moves everything from one account to another, adds its balance to the target,
 /// then deletes it. Nothing is counted as income or spending.
 #[tauri::command]
@@ -593,6 +626,52 @@ fn update_category(state: State<DbState>, id: String, name: String, color: Strin
     Ok(())
 }
 
+#[tauri::command]
+fn get_category_usage(state: State<DbState>) -> Result<Vec<CategoryUsage>, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(r#"
+        SELECT c.id,
+               (SELECT COUNT(*) FROM transactions t WHERE t.category_id=c.id),
+               (SELECT COUNT(*) FROM budgets b WHERE b.category_id=c.id),
+               (SELECT COUNT(*) FROM recurring_transactions r WHERE r.category_id=c.id)
+        FROM categories c
+    "#).map_err(|e| e.to_string())?;
+    let result = stmt.query_map([], |r| Ok(CategoryUsage {
+        category_id: r.get(0)?, transactions: r.get(1)?, budgets: r.get(2)?, recurring: r.get(3)?,
+    })).map_err(|e| e.to_string())?
+    .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    Ok(result)
+}
+
+/// Moves everything from one category into another of the same type, then
+/// deletes the first. Where both have a budget in the same month, the target's stays.
+#[tauri::command]
+fn merge_category(state: State<DbState>, from_id: String, to_id: String) -> Result<(), String> {
+    if from_id == to_id { return Err("Pick a different category".into()); }
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let info = |id: &str| -> Result<(String, bool), String> {
+        conn.query_row("SELECT category_type,is_default FROM categories WHERE id=?1", params![id],
+            |r| Ok((r.get(0)?, r.get::<_, i32>(1)? != 0)))
+            .map_err(|_| "That category no longer exists".to_string())
+    };
+    let (from_type, from_default) = info(&from_id)?;
+    let (to_type, _) = info(&to_id)?;
+    if from_default { return Err("Built-in categories can't be merged away".into()); }
+    if from_type != to_type { return Err("Pick a category of the same type".into()); }
+
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for sql in [
+        "UPDATE transactions SET category_id=?1 WHERE category_id=?2",
+        "UPDATE recurring_transactions SET category_id=?1 WHERE category_id=?2",
+        "DELETE FROM budgets WHERE category_id=?2 AND EXISTS (SELECT 1 FROM budgets t WHERE t.category_id=?1 AND t.year=budgets.year AND t.month=budgets.month)",
+        "UPDATE budgets SET category_id=?1 WHERE category_id=?2",
+    ] {
+        tx.execute(sql, params![to_id, from_id]).map_err(|e| e.to_string())?;
+    }
+    tx.execute("DELETE FROM categories WHERE id=?1", params![from_id]).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
 /// Refuses with a readable reason instead of a raw foreign key error.
 #[tauri::command]
 fn delete_category(state: State<DbState>, id: String) -> Result<(), String> {
@@ -637,7 +716,8 @@ fn get_transactions(
                t.date,t.notes,t.payee,t.payment_method,t.tags,
                t.is_recurring,t.recurring_id,
                t.created_at,t.updated_at,
-               c.name,c.color,c.icon,a.name
+               c.name,c.color,c.icon,a.name,
+               t.tuition_id,(SELECT lo.person FROM loans lo WHERE lo.transaction_id=t.id LIMIT 1)
         FROM transactions t
         LEFT JOIN categories c ON t.category_id=c.id
         LEFT JOIN accounts a ON t.account_id=a.id
@@ -671,7 +751,7 @@ fn get_transactions(
         is_recurring: r.get::<_, i32>(10)? != 0, recurring_id: r.get(11)?,
         created_at: r.get(12)?, updated_at: r.get(13)?,
         category_name: r.get(14)?, category_color: r.get(15)?, category_icon: r.get(16)?,
-        account_name: r.get(17)?,
+        account_name: r.get(17)?, tuition_id: r.get(18)?, linked_person: r.get(19)?,
     })).map_err(|e| e.to_string())?
     .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
     Ok(result)
@@ -711,6 +791,7 @@ fn create_transaction(
         created_at: now.clone(), updated_at: now,
         category_name: Some(cat_name), category_color: Some(cat_color),
         category_icon: Some(cat_icon), account_name: Some(acct_name),
+        tuition_id: None, linked_person: None,
     })
 }
 
@@ -798,6 +879,32 @@ fn upsert_budget(state: State<DbState>, category_id: String, amount: f64, year: 
         params![id, category_id, amount, year, month],
     ).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Copies one month's budgets into another. Categories that already have a
+/// budget in the target month keep theirs. Returns how many were copied.
+#[tauri::command]
+fn copy_budgets(state: State<DbState>, from_year: i32, from_month: i32, to_year: i32, to_month: i32) -> Result<i64, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let source: Vec<(String, f64)> = {
+        let mut stmt = conn.prepare(
+            "SELECT category_id,amount FROM budgets b WHERE year=?1 AND month=?2
+             AND NOT EXISTS (SELECT 1 FROM budgets t WHERE t.category_id=b.category_id AND t.year=?3 AND t.month=?4)"
+        ).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params![from_year, from_month, to_year, to_month], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        rows
+    };
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for (category_id, amount) in &source {
+        tx.execute(
+            "INSERT INTO budgets(id,category_id,amount,period,year,month) VALUES(?1,?2,?3,'monthly',?4,?5)",
+            params![Uuid::new_v4().to_string(), category_id, amount, to_year, to_month],
+        ).map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(source.len() as i64)
 }
 
 #[tauri::command]
@@ -1691,10 +1798,11 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_accounts, create_account, update_account, set_accounts_currency, delete_account,
-            get_account_usage, merge_account,
+            get_account_usage, merge_account, adjust_account_balance,
             get_categories, create_category, update_category, delete_category,
+            get_category_usage, merge_category,
             get_transactions, create_transaction, update_transaction, delete_transaction,
-            get_budgets, upsert_budget, delete_budget,
+            get_budgets, upsert_budget, delete_budget, copy_budgets,
             get_savings_goals, create_savings_goal, update_savings_goal, delete_savings_goal,
             get_tuition_fees, create_tuition_fee, update_tuition_fee, delete_tuition_fee,
             get_tuition_payments, add_tuition_payment,

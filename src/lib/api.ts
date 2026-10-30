@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   Account, Category, Transaction, Budget, SavingsGoal,
   RecurringTransaction, DashboardData, SpendingByCategory, DailySpending,
-  TuitionFee, TuitionPayment, Loan, LoanRepayment, Stats, AccountUsage
+  TuitionFee, TuitionPayment, Loan, LoanRepayment, Stats, AccountUsage, CategoryUsage
 } from '../types';
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
@@ -32,6 +32,9 @@ export const api = {
     usage: () => invoke<AccountUsage[]>('get_account_usage'),
     /** Moves everything from one account into another, then deletes the first. */
     merge: (fromId: string, toId: string) => invoke<void>('merge_account', { fromId, toId }),
+    /** Records the difference to the real balance; resolves to that difference. */
+    adjust: (data: { account_id: string; new_balance: number; date: string; note: string }) =>
+      invoke<number>('adjust_account_balance', { accountId: data.account_id, newBalance: data.new_balance, date: data.date, note: data.note }),
   },
 
   categories: {
@@ -46,6 +49,9 @@ export const api = {
     update: (data: Pick<Category, 'id' | 'name' | 'color' | 'icon'>) =>
       invoke<void>('update_category', data),
     delete: (id: string) => invoke<void>('delete_category', { id }),
+    usage: () => invoke<CategoryUsage[]>('get_category_usage'),
+    /** Moves everything into another category of the same type, then deletes this one. */
+    merge: (fromId: string, toId: string) => invoke<void>('merge_category', { fromId, toId }),
   },
 
   transactions: {
@@ -125,6 +131,9 @@ export const api = {
         month: data.month,
       }),
     delete: (id: string) => invoke<void>('delete_budget', { id }),
+    /** Copies a month's budgets into another month; resolves to how many were copied. */
+    copy: (from: { year: number; month: number }, to: { year: number; month: number }) =>
+      invoke<number>('copy_budgets', { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
   },
 
   goals: {

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Wallet, Building2, CreditCard, TrendingUp, ArrowRightLeft } from 'lucide-react';
+import { Plus, Pencil, Trash2, Wallet, Building2, CreditCard, TrendingUp, ArrowRightLeft, SlidersHorizontal } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, formatSigned, todayISO } from '../../lib/utils';
 import { useAddRequest } from '../../lib/useAddRequest';
 import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
@@ -71,7 +71,7 @@ function AccountForm({ acct, onSaved, onClose }: { acct?: Account; onSaved: () =
         </div>
       </div>
       {acct ? (
-        <p style={faint}>Balance: {formatCurrency(acct.balance)}. It changes through transactions.</p>
+        <p style={faint}>Balance: {formatCurrency(acct.balance)} · use Adjust balance to correct it</p>
       ) : (
         <div>
           <label className="label mb-1.5 block">Opening balance</label>
@@ -93,6 +93,44 @@ function AccountForm({ acct, onSaved, onClose }: { acct?: Account; onSaved: () =
 }
 
 /** Moves every entry and the balance into another account, then deletes this one. */
+/** Sets an account to what it really holds. The difference is recorded as an adjustment, not spending. */
+function AdjustForm({ acct, onSaved, onClose }: { acct: Account; onSaved: () => void; onClose: () => void }) {
+  const { showToast } = useAppStore();
+  const [actual, setActual] = useState(String(Math.round(acct.balance * 100) / 100));
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ actual, note });
+  const diff = (parseFloat(actual) || 0) - acct.balance;
+
+  const handleSave = async () => {
+    if (actual.trim() === '' || isNaN(parseFloat(actual))) return showToast('Enter an amount', 'error');
+    setSaving(true);
+    try {
+      const d = await api.accounts.adjust({ account_id: acct.id, new_balance: parseFloat(actual), date: todayISO(), note: note.trim() });
+      if (Math.abs(d) >= 0.005) showToast(`${acct.name} adjusted ${formatSigned(d)}`);
+      onSaved();
+      onClose();
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <FormSheet title={`Adjust ${acct.name}`} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
+      <div>
+        <label className="label mb-1.5 block">Actual balance</label>
+        <MoneyInput value={actual} onChange={e => setActual(e.target.value)} step="0.01" autoFocus />
+        {Math.abs(diff) >= 0.005 && (
+          <p style={{ ...faint, marginTop: 6 }}>Difference: {formatSigned(diff)}. Not counted as spending.</p>
+        )}
+      </div>
+      <div>
+        <label className="label mb-1.5 block">Note</label>
+        <input type="text" value={note} onChange={e => setNote(e.target.value)} className="input" placeholder="Optional" />
+      </div>
+    </FormSheet>
+  );
+}
+
 function MergeAccountForm({ from, usage, onSaved, onClose }: { from: Account; usage?: AccountUsage; onSaved: () => void; onClose: () => void }) {
   const { accounts, showToast } = useAppStore();
   const targets = accounts.filter(a => a.id !== from.id);
@@ -140,6 +178,7 @@ export function Accounts() {
   const [showForm, setShowForm] = useState(false);
   const [editAcct, setEditAcct] = useState<Account | undefined>();
   const [mergeAcct, setMergeAcct] = useState<Account | undefined>();
+  const [adjustAcct, setAdjustAcct] = useState<Account | undefined>();
   const [usage, setUsage] = useState<Record<string, AccountUsage>>({});
 
   const loadUsage = () => api.accounts.usage()
@@ -231,6 +270,7 @@ export function Accounts() {
                       </div>
                       <RowMenu items={[
                         { label: 'Edit', icon: <Pencil size={13} />, onSelect: () => openEdit(a) },
+                        { label: 'Adjust balance', icon: <SlidersHorizontal size={13} />, onSelect: () => setAdjustAcct(a) },
                         {
                           label: 'Move everything to…', icon: <ArrowRightLeft size={13} />, onSelect: () => setMergeAcct(a),
                           disabled: accounts.length < 2, hint: 'Add another account first',
@@ -252,6 +292,10 @@ export function Accounts() {
       {showForm && (
         <AccountForm key={editAcct?.id ?? 'new'} acct={editAcct} onSaved={refresh}
           onClose={() => { setShowForm(false); setEditAcct(undefined); }} />
+      )}
+
+      {adjustAcct && (
+        <AdjustForm key={adjustAcct.id} acct={adjustAcct} onSaved={refresh} onClose={() => setAdjustAcct(undefined)} />
       )}
 
       {mergeAcct && (
