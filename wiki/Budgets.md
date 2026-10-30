@@ -10,7 +10,11 @@ Budgets apply to expenses only — income isn't budgeted.
 
 ## Setting a budget
 
-Use the month navigation at the top to land on the month you want, then click *Add Budget*, choose a category, and enter an amount. The note in the form confirms which month and year you're setting it for.
+Use the month arrows at the top to land on the month you want, then click **Add budget**, choose a category, and enter an amount. Categories that already have a budget that month aren't offered again; edit those instead.
+
+## A new month
+
+Budgets belong to one month, so a new month starts empty. If the month before had budgets, the empty page offers **Copy October's budgets (5)**: one click carries them all over. Categories that already have a budget this month keep theirs.
 
 ## Reading the page
 

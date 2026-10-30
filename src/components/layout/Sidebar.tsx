@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Settings } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { NAV_ITEMS } from '../../lib/nav';
+import type { Page } from '../../types';
 
 function useCompact() {
   const [compact, setCompact] = useState(window.innerWidth <= 1099);
@@ -71,6 +72,19 @@ export function Sidebar() {
   const { currentPage, setPage, visibleSections, navOrder } = useAppStore();
   const compact = useCompact();
 
+  // Order stays the user's (Settings); setup pages are just listed apart, under "Manage".
+  const shown = navOrder.filter((p): p is Exclude<Page, 'settings'> => {
+    if (p === 'settings') return false;
+    const { hideable } = NAV_ITEMS[p];
+    return !hideable || visibleSections[hideable];
+  });
+  const button = (page: Exclude<Page, 'settings'>) => {
+    const { label, icon } = NAV_ITEMS[page];
+    return (
+      <NavButton key={page} label={label} Icon={icon} active={currentPage === page} onClick={() => setPage(page)} compact={compact} />
+    );
+  };
+
   return (
     <aside style={{
       width: 'var(--sidebar-w)',
@@ -120,21 +134,18 @@ export function Sidebar() {
         gap: 2,
         overflowY: 'auto',
       }}>
-        {navOrder.map(page => {
-          if (page === 'settings') return null;
-          const { label, icon, hideable } = NAV_ITEMS[page];
-          if (hideable && !visibleSections[hideable]) return null;
-          return (
-            <NavButton
-              key={page}
-              label={label}
-              Icon={icon}
-              active={currentPage === page}
-              onClick={() => setPage(page)}
-              compact={compact}
-            />
-          );
-        })}
+        {shown.filter(p => !NAV_ITEMS[p].manage).map(button)}
+        {shown.some(p => NAV_ITEMS[p].manage) && (
+          <>
+            <div style={{ height: 1, background: 'var(--line)', margin: compact ? '8px 4px' : '10px 4px 6px' }} />
+            {!compact && (
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 500, color: 'var(--ink-faint)', padding: '0 11px 4px' }}>
+                Manage
+              </div>
+            )}
+            {shown.filter(p => NAV_ITEMS[p].manage).map(button)}
+          </>
+        )}
       </nav>
 
       {/* Foot */}

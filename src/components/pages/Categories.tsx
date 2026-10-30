@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Tag } from 'lucide-react';
+import { Plus, Pencil, Trash2, Tag, Lock, Merge } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { RowMenu } from '../ui/RowMenu';
@@ -9,7 +9,7 @@ import { Segmented } from '../ui/Segmented';
 import { EmptyState } from '../ui/EmptyState';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { PageHeader } from '../layout/PageHeader';
-import type { Category } from '../../types';
+import type { Category, CategoryUsage } from '../../types';
 
 const COLORS = ['#BD5C42','#4E7A52','#B23E2E','#B5852A','#8A5A78','#3F7E7A','#A87E2E','#B05772','#6E7A3F','#5B6675','#C2613F','#4A9490'];
 const ICONS = ['tag','briefcase','laptop','store','trending-up','gift','plus-circle','utensils','car','shopping-bag','tv','home','zap','heart','graduation-cap','plane','refresh-cw','shield','minus-circle','wallet'];
@@ -78,7 +78,60 @@ function CategoryForm({ cat, type, onSaved, onClose }: { cat?: Category; type?: 
   );
 }
 
-function CatCard({ cat, onEdit, onDelete }: { cat: Category; onEdit: () => void; onDelete: () => void }) {
+const entries = (u?: CategoryUsage) => (u ? u.transactions + u.budgets + u.recurring : 0);
+
+/** "12 entries, 1 budget": what a merge would move. */
+function describeUsage(u?: CategoryUsage): string {
+  if (!u) return '';
+  const parts = [
+    u.transactions ? `${u.transactions} ${u.transactions === 1 ? 'entry' : 'entries'}` : '',
+    u.budgets ? `${u.budgets} budget${u.budgets === 1 ? '' : 's'}` : '',
+    u.recurring ? `${u.recurring} recurring` : '',
+  ].filter(Boolean);
+  return parts.join(', ');
+}
+
+/** Moves every entry, budget and recurring item into another category of the same type, then deletes this one. */
+function MergeForm({ from, usage, onSaved, onClose }: { from: Category; usage?: CategoryUsage; onSaved: () => void; onClose: () => void }) {
+  const { categories, showToast } = useAppStore();
+  const targets = categories.filter(c => c.category_type === from.category_type && c.id !== from.id);
+  const [toId, setToId] = useState(targets[0]?.id ?? '');
+  const [saving, setSaving] = useState(false);
+  const moving = describeUsage(usage);
+
+  const handleSave = async () => {
+    if (!toId) return showToast('Pick a category', 'error');
+    setSaving(true);
+    try {
+      await api.categories.merge(from.id, toId);
+      showToast('Merged');
+      onSaved();
+      onClose();
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <FormSheet title="Merge category" onClose={onClose} onSubmit={handleSave} saving={saving} submitLabel="Merge">
+      <div>
+        <label htmlFor="merge-cat" className="block mb-1.5" style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--ink)' }}>
+          Move everything from <b>{from.name}</b> into
+        </label>
+        <select id="merge-cat" value={toId} onChange={e => setToId(e.target.value)} className="input" autoFocus>
+          {targets.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
+        {moving ? `${moving.charAt(0).toUpperCase()}${moving.slice(1)} move. ` : ''}{from.name} is then deleted.
+      </p>
+    </FormSheet>
+  );
+}
+
+function CatCard({ cat, usage, onEdit, onMerge, onDelete }: {
+  cat: Category; usage?: CategoryUsage; onEdit: () => void; onMerge: () => void; onDelete: () => void;
+}) {
+  const used = entries(usage);
   return (
     <div className="group mm-acctrow" role="button" tabIndex={0} onClick={onEdit}
       onKeyDown={e => { if (e.key === 'Enter' && e.target === e.currentTarget) onEdit(); }}
@@ -95,16 +148,22 @@ function CatCard({ cat, onEdit, onDelete }: { cat: Category; onEdit: () => void;
         <CategoryIcon icon={cat.icon} size={17} />
       </div>
       <div style={{
-        flex: 1, minWidth: 0, fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600,
+        flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600,
         color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
         {cat.name}
+        {cat.is_default && <Lock size={11} aria-label="Built-in" style={{ color: 'var(--ink-faint)', flexShrink: 0 }} />}
       </div>
       <RowMenu items={[
         { label: 'Edit', icon: <Pencil size={13} />, onSelect: onEdit },
         {
+          label: 'Merge into…', icon: <Merge size={13} />, onSelect: onMerge,
+          disabled: cat.is_default, hint: "Built-in categories can't be merged away",
+        },
+        {
           label: 'Delete', icon: <Trash2 size={13} />, onSelect: onDelete, danger: true,
-          disabled: cat.is_default, hint: "Built-in categories can't be deleted",
+          disabled: cat.is_default || used > 0,
+          hint: cat.is_default ? "Built-in categories can't be deleted" : `Used by ${used} ${used === 1 ? 'entry' : 'entries'}. Merge it instead.`,
         },
       ]} />
     </div>
@@ -112,18 +171,23 @@ function CatCard({ cat, onEdit, onDelete }: { cat: Category; onEdit: () => void;
 }
 
 export function Categories() {
-  const { categories: all, fetchCategories, pendingDeletes, deleteWithUndo } = useAppStore();
+  const { categories: all, fetchCategories, fetchBudgets, fetchRecurring, bumpData, pendingDeletes, deleteWithUndo } = useAppStore();
   const categories = all.filter(c => !pendingDeletes.has(c.id));
-  const [showForm, setShowForm] = useState(false);
-  const [editCat, setEditCat] = useState<Category | undefined>();
+  const [form, setForm] = useState<{ cat?: Category } | null>(null);
+  const [merging, setMerging] = useState<Category | undefined>();
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
-  const openForm = (c?: Category) => { setEditCat(c); setShowForm(true); };
-  useAddRequest('categories', () => openForm());
+  const [usage, setUsage] = useState<Record<string, CategoryUsage>>({});
+  useAddRequest('categories', () => setForm({}));
 
-  useEffect(() => { fetchCategories(); }, []);
+  const loadUsage = () => api.categories.usage()
+    .then(rows => setUsage(Object.fromEntries(rows.map(u => [u.category_id, u]))))
+    .catch(e => console.error('categoryUsage', e));
+  useEffect(() => { fetchCategories(); loadUsage(); }, []);
 
-  // If the category turns out to be in use, the real delete fails, the error
-  // says why, and the card comes back.
+  // A merge moves entries, budgets and recurring items, so those lists reload too.
+  const afterMerge = () => { fetchCategories(); loadUsage(); fetchBudgets(); fetchRecurring(); bumpData(); };
+
+  // Only unused categories reach here, so nothing cascades and Undo is enough.
   const handleDelete = (c: Category) => deleteWithUndo({
     id: c.id, label: 'Category',
     commit: async () => { await api.categories.delete(c.id); await fetchCategories(); },
@@ -131,18 +195,15 @@ export function Categories() {
 
   const filtered = categories.filter(c => c.category_type === activeType);
   const count = (t: 'expense' | 'income') => categories.filter(c => c.category_type === t).length;
+  const addButton = (
+    <button onClick={() => setForm({})} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <Plus size={15} /> Add category
+    </button>
+  );
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <PageHeader
-
-        title="Categories"
-        actions={
-          <button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={15} /> Add category
-          </button>
-        }
-      />
+      <PageHeader title="Categories" actions={addButton} />
 
       <div style={{ padding: '12px var(--content-h-pad)', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
         <Segmented size="sm" fill={false} value={activeType} onChange={setActiveType} label="Category type"
@@ -151,25 +212,24 @@ export function Categories() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px var(--content-h-pad) 56px' }}>
         {filtered.length === 0 ? (
-          <EmptyState icon={<Tag size={22} />} title="No categories" description="Add your own to group entries your way."
-            action={<button onClick={() => openForm()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add category</button>} />
+          <EmptyState icon={<Tag size={22} />} title="No categories" action={addButton} />
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
             {filtered.map(c => (
-              <CatCard key={c.id} cat={c} onEdit={() => openForm(c)} onDelete={() => handleDelete(c)} />
+              <CatCard key={c.id} cat={c} usage={usage[c.id]}
+                onEdit={() => setForm({ cat: c })} onMerge={() => setMerging(c)} onDelete={() => handleDelete(c)} />
             ))}
           </div>
         )}
       </div>
 
-      {showForm && (
-        <CategoryForm
-          key={editCat?.id ?? 'new'}
-          cat={editCat}
-          type={activeType}
-          onSaved={fetchCategories}
-          onClose={() => { setShowForm(false); setEditCat(undefined); }}
-        />
+      {form && (
+        <CategoryForm key={form.cat?.id ?? 'new'} cat={form.cat} type={activeType}
+          onSaved={() => { fetchCategories(); loadUsage(); }} onClose={() => setForm(null)} />
+      )}
+
+      {merging && (
+        <MergeForm key={merging.id} from={merging} usage={usage[merging.id]} onSaved={afterMerge} onClose={() => setMerging(undefined)} />
       )}
     </div>
   );

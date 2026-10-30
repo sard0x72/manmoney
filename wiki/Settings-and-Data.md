@@ -2,20 +2,22 @@
 
 The Settings page is where you arrange the sidebar, choose your currency, and get your data in and out. It's also where the app's privacy promise is spelled out.
 
-## Sidebar menu
-
-Every sidebar section is listed at the top of Settings, in the order it appears in the sidebar.
-
-- **Reorder** a section with the ↑ and ↓ arrows next to it. The sidebar updates immediately. *Reset order* puts everything back the way it shipped.
-- **Hide** a section by switching it off. It disappears from the sidebar but keeps all its data; switch it back on any time.
-
-Dashboard can be moved but not hidden, and Settings always stays at the bottom of the sidebar. If you hide a section while you're on it, the app takes you back to the Dashboard.
+Settings has four groups: **General**, **Sidebar**, **Data** and **About**.
 
 ## Currency
 
-ManMoney uses **one currency** for everything — every account, transaction, budget, goal, and total. Pick it here. Changing it relabels all amounts; it doesn't convert them.
+ManMoney uses **one currency** for everything: every account, transaction, budget, goal and total. Pick it under **General**. Changing it only changes the symbol; amounts aren't converted. If you change it by mistake, click **Undo** in the message that appears.
 
-The app works offline with no exchange rates, so a single currency is what keeps totals like your net worth correct: every number being added up is in the same unit.
+The app works offline with no exchange rates, so a single currency is what keeps totals like your net worth correct.
+
+## Sidebar
+
+Every sidebar section is listed in the order it appears.
+
+- **Reorder** a section with the ↑ and ↓ arrows. **Reset** puts everything back the way it shipped.
+- **Hide** a section by switching it off. It keeps all its data; switch it back on any time.
+
+Categories and Accounts are setup pages, so the sidebar lists them apart, under **Manage**. Dashboard can be moved but not hidden, and Settings always stays at the bottom. If you hide a section while you're on it, the app takes you back to the Dashboard.
 
 ## Exporting transactions
 
@@ -47,7 +49,7 @@ ManMoney is local-only by design. Your financial data is stored on your device a
 
 ## About
 
-The About section shows how much you've recorded: your transaction, account, category and loan counts. They're counted in the database, so they're always the real totals.
+**About** repeats the privacy promise, shows how much you've recorded (transactions, accounts, categories and loans, counted in the database, so they're always the real totals), and the app version, like "ManMoney 1.4.0".
 
 ## Tips
 

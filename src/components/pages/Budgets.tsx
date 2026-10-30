@@ -61,12 +61,29 @@ function BudgetForm({ budget, taken, onSaved, onClose, year, month }: {
 }
 
 export function Budgets() {
-  const { budgets: all, budgetYear, budgetMonth, setBudgetPeriod, fetchBudgets, pendingDeletes, deleteWithUndo } = useAppStore();
+  const { budgets: all, budgetYear, budgetMonth, setBudgetPeriod, fetchBudgets, pendingDeletes, deleteWithUndo, showToast } = useAppStore();
   const budgets = all.filter(b => !pendingDeletes.has(b.id));
   const [form, setForm] = useState<{ budget?: Budget } | null>(null);
   useAddRequest('budgets', () => setForm({}));
 
   useEffect(() => { fetchBudgets(); }, []);
+
+  // An empty month offers to copy the month before, if that one had budgets.
+  const prev = budgetMonth === 1 ? { year: budgetYear - 1, month: 12 } : { year: budgetYear, month: budgetMonth - 1 };
+  const [prevCount, setPrevCount] = useState(0);
+  useEffect(() => {
+    setPrevCount(0);
+    if (all.length > 0) return;
+    api.budgets.list(prev.year, prev.month).then(b => setPrevCount(b.length)).catch(() => setPrevCount(0));
+  }, [budgetYear, budgetMonth, all.length]);
+
+  const copyPrevious = async () => {
+    try {
+      const n = await api.budgets.copy(prev, { year: budgetYear, month: budgetMonth });
+      showToast(`Copied ${n} budget${n === 1 ? '' : 's'}`);
+      fetchBudgets();
+    } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
+  };
 
   const prevMonth = () => {
     if (budgetMonth === 1) setBudgetPeriod(budgetYear - 1, 12);
@@ -108,12 +125,25 @@ export function Budgets() {
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ maxWidth: 760, margin: '0 auto', padding: 'calc(36px * var(--v-rhythm)) var(--content-h-pad) 56px' }}>
           {budgets.length === 0 ? (
-            <EmptyState
-              icon={<Wallet size={22} />}
-              title="No budgets set"
-              description="Set monthly budgets to track your spending limits."
-              action={<button onClick={() => setForm({})} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add budget</button>}
-            />
+            prevCount > 0 ? (
+              <EmptyState
+                icon={<Wallet size={22} />}
+                title={`No budgets for ${monthName(budgetMonth)}`}
+                action={
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={copyPrevious} className="btn-primary">Copy {monthName(prev.month)}'s budgets ({prevCount})</button>
+                    <button onClick={() => setForm({})} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add budget</button>
+                  </div>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={<Wallet size={22} />}
+                title={`No budgets for ${monthName(budgetMonth)}`}
+                description="Set a monthly limit for a category to see how much is left."
+                action={<button onClick={() => setForm({})} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add budget</button>}
+              />
+            )
           ) : (
             <>
             <SummaryBar items={[

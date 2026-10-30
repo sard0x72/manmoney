@@ -5,7 +5,8 @@ import { api } from '../../lib/api';
 import { downloadBlob, CURRENCIES, todayISO } from '../../lib/utils';
 import { NAV_ITEMS } from '../../lib/nav';
 import { PageHeader } from '../layout/PageHeader';
-import { Modal } from '../ui/Modal';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { getVersion } from '@tauri-apps/api/app';
 import type { Stats } from '../../types';
 import * as XLSX from 'xlsx';
 
@@ -24,11 +25,12 @@ function MoveButton({ dir, disabled, onClick, label }: { dir: 'up' | 'down'; dis
   );
 }
 
-function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
+function Toggle({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) {
   return (
     <button
       role="switch"
       aria-checked={on}
+      aria-label={label}
       onClick={onChange}
       style={{
         width: 40, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer',
@@ -54,7 +56,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section style={{ marginBottom: 36 }}>
-      <h2 className="mm-eyebrow" style={{ marginBottom: 4 }}>{title}</h2>
+      <h2 style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 4 }}>{title}</h2>
       <div>{children}</div>
     </section>
   );
@@ -93,17 +95,20 @@ function describeBackup(data: Record<string, unknown>): string {
 }
 
 export function Settings() {
-  const { currency, setCurrency, fetchAll, showToast, visibleSections, toggleSection, navOrder, moveNavItem, resetNavOrder } = useAppStore();
+  const { currency, setCurrency, fetchAll, showToast, clearToast, visibleSections, toggleSection, navOrder, moveNavItem, resetNavOrder } = useAppStore();
   const isDefaultOrder = navOrder.every((p, i) => p === DEFAULT_NAV_ORDER[i]);
   const [dbPath, setDbPath] = useState('');
   const [stats, setStats] = useState<Stats | null>(null);
   const [restore, setRestore] = useState<{ json: string; summary: string } | null>(null);
-  const [restoring, setRestoring] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Real totals from the database; the store only holds what the open pages loaded.
   const loadStats = () => api.stats().then(setStats).catch(e => console.error('stats', e));
-  useEffect(() => { loadStats(); }, []);
+  const [version, setVersion] = useState('');
+  useEffect(() => {
+    loadStats();
+    getVersion().then(setVersion).catch(() => setVersion(''));
+  }, []);
 
   const exportCSV = async () => {
     try {
@@ -149,20 +154,25 @@ export function Settings() {
 
   const doRestore = async () => {
     if (!restore) return;
-    setRestoring(true);
     try {
       await api.export.restore(restore.json);
-      setRestore(null);
       await fetchAll();
       loadStats();
       showToast('Restored');
     } catch (e: any) { showToast(e?.toString() ?? 'Restore failed', 'error'); }
-    finally { setRestoring(false); }
   };
 
   const showDbPath = async () => {
     try { setDbPath(await api.export.dbPath()); }
     catch { showToast("Couldn't find the database", 'error'); }
+  };
+
+  // Only the symbol changes, so switching back is always safe: offer Undo.
+  const changeCurrency = (next: string) => {
+    const previous = currency;
+    if (next === previous) return;
+    setCurrency(next);
+    showToast(`Currency set to ${next}`, 'success', { label: 'Undo', run: () => { setCurrency(previous); clearToast(); } });
   };
 
   return (
@@ -172,14 +182,22 @@ export function Settings() {
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ maxWidth: 'var(--prose-max)', padding: 'calc(36px * var(--v-rhythm)) var(--content-h-pad) calc(56px * var(--v-rhythm))' }}>
 
-          <Group title="Sidebar menu">
+          <Group title="General">
+            <Row label="Currency" desc="Only changes the symbol. Amounts aren't converted.">
+              <select value={currency} onChange={e => changeCurrency(e.target.value)} className="input" style={{ width: 110 }} aria-label="Currency">
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Row>
+          </Group>
+
+          <Group title="Sidebar">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '6px 0 4px' }}>
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>
-                Use the arrows to reorder the sidebar. Switch a section off to hide it.
+                Reorder with the arrows. Turn a section off to hide it.
               </p>
               {!isDefaultOrder && (
                 <button onClick={resetNavOrder} className="btn-ghost" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', fontSize: 12, flexShrink: 0 }}>
-                  <RotateCcw size={12} /> Reset order
+                  <RotateCcw size={12} /> Reset
                 </button>
               )}
             </div>
@@ -199,48 +217,37 @@ export function Settings() {
                     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)', marginTop: 2 }}>{desc}</div>
                   </div>
                   {hideable
-                    ? <Toggle on={visibleSections[hideable]} onChange={() => toggleSection(hideable)} />
+                    ? <Toggle on={visibleSections[hideable]} onChange={() => toggleSection(hideable)} label={`Show ${label}`} />
                     : <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-faint)' }}>Always shown</span>}
                 </div>
               );
             })}
           </Group>
 
-          <Group title="General">
-            <Row label="Currency" desc="The one currency used for every account and amount in the app.">
-              <select value={currency} onChange={e => setCurrency(e.target.value)} className="input" style={{ width: 110 }}>
-                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+          <Group title="Data">
+            <Row label="Export transactions" desc="Every transaction, as a spreadsheet.">
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={exportCSV} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <FileText size={14} /> CSV
+                </button>
+                <button onClick={exportExcel} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <FileSpreadsheet size={14} /> Excel
+                </button>
+              </div>
             </Row>
-          </Group>
-
-          <Group title="Export data">
-            <Row label="Export as CSV" desc="Download all transactions as a spreadsheet-compatible file.">
-              <button onClick={exportCSV} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <FileText size={14} /> CSV
-              </button>
-            </Row>
-            <Row label="Export as Excel" desc="Download all transactions as an Excel (.xlsx) workbook.">
-              <button onClick={exportExcel} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <FileSpreadsheet size={14} /> Excel
-              </button>
-            </Row>
-            <Row label="Backup" desc="Every account, transaction, loan and setting in one file.">
+            <Row label="Backup" desc="Everything, in one file you can restore later.">
               <button onClick={exportBackup} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <Download size={14} /> Backup
               </button>
             </Row>
-            <Row label="Restore from backup" desc="Replaces all data with a backup file.">
+            <Row label="Restore from backup" desc="Replaces all your data with a backup file.">
               <input ref={fileRef} type="file" accept=".json,application/json" hidden
                 onChange={e => { pickBackup(e.target.files?.[0]); e.target.value = ''; }} />
               <button onClick={() => fileRef.current?.click()} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <Upload size={14} /> Restore
               </button>
             </Row>
-          </Group>
-
-          <Group title="Your data">
-            <Row label="Database location" desc="SQLite file stored locally on your device.">
+            <Row label="Database location" desc="One SQLite file on this computer.">
               <button onClick={showDbPath} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <Database size={14} /> Show path
               </button>
@@ -255,75 +262,42 @@ export function Settings() {
             )}
           </Group>
 
-          {/* Privacy promise */}
-          <div style={{
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--line)',
-            overflow: 'hidden',
-            marginTop: 8,
-          }}>
-            {/* Header */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '16px 20px',
-              background: 'var(--surface)',
-              borderBottom: '1px solid var(--line)',
-            }}>
-              <span style={{
-                width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                background: 'color-mix(in srgb, var(--positive) 12%, transparent)',
-                color: 'var(--positive)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <ShieldCheck size={17} />
-              </span>
-              <div>
-                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
-                  About
-                </div>
-                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-muted)', marginTop: 1 }}>
-                  Everything stays on your device. No account, no sync, no telemetry.
-                </div>
-              </div>
+          <Group title="About">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0' }}>
+              <ShieldCheck size={16} style={{ color: 'var(--positive)', flexShrink: 0 }} />
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--ink)' }}>
+                Everything stays on this computer. No account, no sync, no tracking.
+              </p>
             </div>
-            {/* Stats row */}
-            <div style={{
-              display: 'flex',
-              background: 'var(--paper-sunk)',
-            }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 22px', padding: '4px 0 10px' }}>
               {[
                 { icon: <ReceiptText size={13} />, value: stats?.transactions, label: 'transactions' },
                 { icon: <Wallet size={13} />, value: stats?.accounts, label: 'accounts' },
                 { icon: <Tag size={13} />, value: stats?.categories, label: 'categories' },
                 { icon: <HandCoins size={13} />, value: stats?.loans, label: 'loans' },
-              ].map((stat, i, all) => (
-                <div key={i} style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                  padding: '12px 8px',
-                  borderRight: i < all.length - 1 ? '1px solid var(--line)' : 'none',
-                }}>
+              ].map(stat => (
+                <span key={stat.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ color: 'var(--ink-faint)', display: 'flex' }}>{stat.icon}</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>{stat.value?.toLocaleString('en-US') ?? '–'}</span>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-faint)' }}>{stat.label}</span>
-                </div>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>
+                    {stat.value?.toLocaleString('en-US') ?? '–'}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>{stat.label}</span>
+                </span>
               ))}
             </div>
-          </div>
+            {version && (
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--ink-faint)' }}>ManMoney {version}</p>
+            )}
+          </Group>
 
         </div>
       </div>
 
-      <Modal open={!!restore} onClose={() => !restoring && setRestore(null)} title="Restore from backup" size="sm"
-        footer={<>
-          <button onClick={() => setRestore(null)} disabled={restoring} className="btn-secondary" autoFocus>Cancel</button>
-          <button onClick={doRestore} disabled={restoring} className="btn-danger">{restoring ? 'Restoring…' : 'Restore'}</button>
-        </>}
-      >
-        <p className="text-sm text-[hsl(var(--text-muted))]">
-          Replace all your data with this backup? {restore?.summary}. Your current data is saved first
-          as manmoney-before-restore-&lt;date&gt;.db next to the database.
-        </p>
-      </Modal>
+      {restore && (
+        <ConfirmDialog title="Restore from backup" confirmLabel="Restore" onConfirm={doRestore} onClose={() => setRestore(null)}
+          body={<>Replace all your data with this backup? {restore.summary}. Your current data is saved first as
+            manmoney-before-restore-&lt;date&gt;.db next to the database.</>} />
+      )}
     </div>
   );
 }
