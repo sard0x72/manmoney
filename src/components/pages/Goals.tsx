@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { FormSheet, useDirty } from '../ui/FormSheet';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { PageHeader } from '../layout/PageHeader';
@@ -11,7 +12,7 @@ import type { SavingsGoal } from '../../types';
 
 const COLORS = ['#BD5C42','#4E7A52','#B23E2E','#B5852A','#8A5A78','#3F7E7A','#A87E2E','#B05772'];
 
-function GoalForm({ goal, onSave, onCancel }: { goal?: SavingsGoal; onSave: () => void; onCancel: () => void }) {
+function GoalForm({ goal, onSaved, onClose }: { goal?: SavingsGoal; onSaved: () => void; onClose: () => void }) {
   const { showToast } = useAppStore();
   const [name, setName] = useState(goal?.name ?? '');
   const [target, setTarget] = useState(goal?.target_amount?.toString() ?? '');
@@ -20,62 +21,59 @@ function GoalForm({ goal, onSave, onCancel }: { goal?: SavingsGoal; onSave: () =
   const [color, setColor] = useState(goal?.color ?? COLORS[0]);
   const [notes, setNotes] = useState(goal?.notes ?? '');
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ name, target, current, deadline, color, notes });
 
   const handleSave = async () => {
     const tgt = parseFloat(target);
-    if (!name.trim()) return showToast('Enter a goal name', 'error');
-    if (!tgt || tgt <= 0) return showToast('Enter a valid target amount', 'error');
+    if (!name.trim()) return showToast('Enter a name', 'error');
+    if (!tgt || tgt <= 0) return showToast('Enter a target', 'error');
     setSaving(true);
     try {
       const data = { name: name.trim(), target_amount: tgt, current_amount: parseFloat(current) || 0, deadline: deadline || undefined, color, icon: 'target', notes };
-      if (goal) { await api.goals.update({ ...data, id: goal.id }); showToast('Goal updated'); }
-      else { await api.goals.create(data); showToast('Goal created'); }
-      onSave();
+      if (goal) await api.goals.update({ ...data, id: goal.id });
+      else await api.goals.create(data);
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="space-y-4">
+    <FormSheet title={goal ? 'Edit goal' : 'Add goal'} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
       <div>
-        <label className="label mb-1.5 block">Goal Name</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="e.g. Emergency Fund, Japan Trip…" autoFocus />
+        <label className="label mb-1.5 block">Name</label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="Emergency fund, Japan trip" autoFocus />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label mb-1.5 block">Target Amount</label>
+          <label className="label mb-1.5 block">Target</label>
           <MoneyInput value={target} onChange={e => setTarget(e.target.value)} />
         </div>
         <div>
-          <label className="label mb-1.5 block">Already Saved</label>
+          <label className="label mb-1.5 block">Already saved</label>
           <MoneyInput value={current} onChange={e => setCurrent(e.target.value)} />
         </div>
       </div>
       <div>
-        <label className="label mb-1.5 block">Target Date (optional)</label>
+        <label className="label mb-1.5 block">Target date</label>
         <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className="input" />
       </div>
       <div>
         <label className="label mb-2 block">Color</label>
         <div className="flex gap-2 flex-wrap">
           {COLORS.map(c => (
-            <button key={c} onClick={() => setColor(c)}
+            <button key={c} type="button" onClick={() => setColor(c)} aria-label={`Colour ${c}`} aria-pressed={color === c}
               className={`w-7 h-7 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-[hsl(var(--text))] scale-110' : 'hover:scale-105'}`}
               style={{ backgroundColor: c }} />
           ))}
         </div>
       </div>
       <div>
-        <label className="label mb-1.5 block">Notes</label>
-        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="Optional notes…" />
+        <label className="label mb-1.5 block">Note</label>
+        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="Optional" />
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : goal ? 'Update Goal' : 'Create Goal'}
-        </button>
-      </div>
-    </div>
+    </FormSheet>
   );
 }
 
@@ -221,13 +219,14 @@ export function Goals() {
         </div>
       </div>
 
-      <Modal open={showForm} onClose={() => { setShowForm(false); setEditGoal(undefined); }} title={editGoal ? 'Edit Goal' : 'New Savings Goal'} size="sm">
+      {showForm && (
         <GoalForm
+          key={editGoal?.id ?? 'new'}
           goal={editGoal}
-          onSave={() => { setShowForm(false); setEditGoal(undefined); fetchGoals(); }}
-          onCancel={() => { setShowForm(false); setEditGoal(undefined); }}
+          onSaved={fetchGoals}
+          onClose={() => { setShowForm(false); setEditGoal(undefined); }}
         />
-      </Modal>
+      )}
 
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Goal" size="sm"
         footer={<><button onClick={() => setDeleteId(null)} className="btn-secondary">Cancel</button><button onClick={handleDelete} className="btn-danger">Delete</button></>}

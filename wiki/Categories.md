@@ -15,16 +15,16 @@ The app ships with a sensible starter set so you're productive immediately:
 - **Income:** Salary, Freelance, Business, Investment, Gift, Other Income.
 - **Expense:** Food & Dining, Transport, Shopping, Entertainment, Rent & Housing, Utilities, Health, Education, Travel, Subscriptions, Insurance, Other Expense.
 
-Default categories are marked *Default*. You can rename and recolor them, but you can't delete them — they're always available as a fallback.
+You can rename and recolor the built-in categories, but you can't delete them. They're always there as a fallback.
 
 ## Creating a category
 
-Click *New Category*, choose income or expense, give it a name, and pick a color and an icon. The form shows a live preview so you can see how it'll look in lists and charts.
+Click **Add category**, choose expense or income, give it a name, and pick a color and an icon. The selected icon shows the color, so you can see how it'll look.
 
 ## Editing and deleting
 
-- **Editing** lets you change the name, color, and icon. (The income/expense type is fixed once created.)
-- **Deleting** is only available for your own custom categories, and only if no transactions use them. If a category has transactions, the app blocks the delete so your history doesn't end up with orphaned entries. Reassign those transactions to another category first, then delete.
+- **Editing** changes the name, color and icon. The form shows whether it's an expense or income category, which is fixed once created.
+- **Deleting** works only for your own categories that nothing uses. If transactions, budgets or recurring entries use a category, ManMoney says how many and keeps it. Move those entries to another category first, then delete it.
 
 ## Tips
 

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { formatCurrency, getMonthDateRange, getLast12Months } from '../../lib/utils';
+import { BarChart3, Plus } from 'lucide-react';
+import { useAppStore } from '../../store/useAppStore';
 import { CategoryIcon } from '../ui/CategoryIcon';
+import { EmptyState } from '../ui/EmptyState';
 import { PageHeader } from '../layout/PageHeader';
 import type { SpendingByCategory } from '../../types';
 
@@ -58,6 +61,8 @@ export function Analytics() {
   const [monthly, setMonthly] = useState<{ label: string; income: number; expenses: number }[]>([]);
   const [catExpense, setCatExpense] = useState<SpendingByCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const openQuickAdd = useAppStore(s => s.openQuickAdd);
+  const dataVersion = useAppStore(s => s.dataVersion);
 
   useEffect(() => {
     const load = async () => {
@@ -82,7 +87,7 @@ export function Analytics() {
       setLoading(false);
     };
     load();
-  }, []);
+  }, [dataVersion]);
 
   const avgIncome = monthly.length
     ? Math.round(monthly.reduce((s, m) => s + m.income, 0) / monthly.length)
@@ -95,6 +100,7 @@ export function Analytics() {
     : 0;
 
   const totalSpend = catExpense.reduce((s, c) => s + c.amount, 0);
+  const empty = catExpense.length === 0 && monthly.every(m => m.income === 0 && m.expenses === 0);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -109,6 +115,13 @@ export function Analytics() {
           <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
             style={{ borderColor: 'var(--clay)', borderTopColor: 'transparent' }} />
         </div>
+      ) : empty ? (
+        // The 12 months always exist, so "no data" means every one of them is zero.
+        <EmptyState
+          icon={<BarChart3 size={22} />}
+          title="Nothing to show yet"
+          action={<button onClick={() => openQuickAdd('transaction')} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Plus size={14} /> Add transaction</button>}
+        />
       ) : (
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <div style={{ maxWidth: 'var(--content-max)', padding: 'calc(28px * var(--v-rhythm)) var(--content-h-pad) calc(64px * var(--v-rhythm))' }}>
@@ -137,7 +150,7 @@ export function Analytics() {
                 <div style={{
                   marginTop: 14,
                   fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
-                  fontSize: 24, fontWeight: 500, color: 'var(--positive)',
+                  fontSize: 24, fontWeight: 500, color: saveRate < 0 ? 'var(--negative)' : 'var(--positive)',
                 }}>
                   {saveRate}%
                 </div>
@@ -199,11 +212,6 @@ export function Analytics() {
               </div>
             )}
 
-            {monthly.length === 0 && catExpense.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '64px 0', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--ink-faint)' }}>
-                No data yet. Add some transactions to see analytics.
-              </div>
-            )}
           </div>
         </div>
       )}

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, HandCoins, ChevronDown, ChevronRight, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, CornerDownRight, Ellipsis, Undo2, Receipt, Wallet } from 'lucide-react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { Plus, Pencil, Trash2, HandCoins, ChevronDown, ChevronRight, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, CornerDownRight, Undo2, Receipt, Wallet } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate, todayISO } from '../../lib/utils';
 import { Modal } from '../ui/Modal';
+import { FormSheet, useDirty } from '../ui/FormSheet';
+import { Segmented } from '../ui/Segmented';
+import { RowMenu } from '../ui/RowMenu';
 import { MoneyInput } from '../ui/MoneyInput';
 import { EmptyState } from '../ui/EmptyState';
 import { PageHeader } from '../layout/PageHeader';
@@ -71,29 +73,6 @@ const isZero = (n: number) => Math.abs(n) <= 0.000001;
 /** Money is open both ways, so the smaller side can be cancelled against the larger. */
 const canCancelOut = (f: Friend) => f.cancellable > 0.000001;
 
-function Segmented<T extends string>({ value, onChange, options, disabled, size = 'md' }: {
-  value: T;
-  onChange: (v: T) => void;
-  options: readonly (readonly [T, React.ReactNode])[];
-  disabled?: boolean;
-  size?: 'sm' | 'md';
-}) {
-  return (
-    <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--paper-sunk)', borderRadius: 'var(--radius)', opacity: disabled ? 0.6 : 1 }}>
-      {options.map(([v, label]) => (
-        <button key={v} type="button" onClick={() => !disabled && onChange(v)} disabled={disabled} aria-pressed={value === v} style={{
-          flex: 1, padding: size === 'sm' ? '5px 0' : '7px 0', borderRadius: 'var(--radius-sm)', border: 'none',
-          cursor: disabled ? 'default' : 'pointer', fontFamily: 'var(--font-sans)', fontSize: size === 'sm' ? 12.5 : 13, fontWeight: 600,
-          background: value === v ? 'var(--surface)' : 'transparent',
-          color: value === v ? 'var(--ink)' : 'var(--ink-faint)',
-          boxShadow: value === v ? 'var(--shadow-sm)' : 'none',
-          transition: 'background var(--dur-fast), color var(--dur-fast)',
-        }}>{label}</button>
-      ))}
-    </div>
-  );
-}
-
 type Split = 'all' | 'half' | 'custom';
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -101,7 +80,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * A bill shared with a friend. Whoever paid, your share is an expense (it counts in
  * budgets) and the rest is a loan between you.
  */
-function SharedBillForm({ defaultPerson, onSave, onCancel }: { defaultPerson?: string; onSave: () => void; onCancel: () => void }) {
+function SharedBillForm({ defaultPerson, onSaved, onClose }: { defaultPerson?: string; onSaved: () => void; onClose: () => void }) {
   const { accounts, categories, loans, showToast } = useAppStore();
   const expenseCats = categories.filter(c => c.category_type === 'expense');
   const knownNames = groupByFriend(loans).map(f => f.name);
@@ -116,6 +95,7 @@ function SharedBillForm({ defaultPerson, onSave, onCancel }: { defaultPerson?: s
   const [date, setDate] = useState(todayISO());
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ person, paidBy, total, split, customShare, categoryId, accountId, date, notes });
 
   const friend = person.trim() || 'Your friend';
   const totalNum = parseFloat(total) || 0;
@@ -140,8 +120,9 @@ function SharedBillForm({ defaultPerson, onSave, onCancel }: { defaultPerson?: s
         person: person.trim(), paid_by: paidBy, total: totalNum, my_share: myShare,
         account_id: accountId, category_id: categoryId, date, notes: notes.trim(),
       });
-      showToast(paidBy === 'friend' ? `Saved — you owe ${person.trim()} ${formatCurrency(owed)}` : `Saved — ${person.trim()} owes you ${formatCurrency(owed)}`);
-      onSave();
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
     finally { setSaving(false); }
   };
@@ -159,7 +140,7 @@ function SharedBillForm({ defaultPerson, onSave, onCancel }: { defaultPerson?: s
       ];
 
   return (
-    <div className="space-y-4">
+    <FormSheet title={defaultPerson ? `Split a bill with ${defaultPerson}` : 'Split a bill'} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
       <div>
         <label className="label mb-1.5 block">Friend</label>
         <input type="text" value={person} onChange={e => setPerson(e.target.value)} className="input" placeholder="Friend's name" autoFocus={!defaultPerson} list="loan-friends" />
@@ -223,16 +204,15 @@ function SharedBillForm({ defaultPerson, onSave, onCancel }: { defaultPerson?: s
           ))}
         </div>
       )}
-
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Save bill'}</button>
-      </div>
-    </div>
+    </FormSheet>
   );
 }
 
-function LoanForm({ loan, defaultPerson, onSave, onCancel }: { loan?: Loan; defaultPerson?: string; onSave: () => void; onCancel: () => void }) {
+function LoanForm({ loan, defaultPerson, onSaved, onClose, onSplitBill }: {
+  loan?: Loan; defaultPerson?: string; onSaved: () => void; onClose: () => void;
+  /** Switches to the shared-bill form, keeping the friend. Only when adding. */
+  onSplitBill?: () => void;
+}) {
   const { accounts, loans, showToast } = useAppStore();
   const [direction, setDirection] = useState<Direction>(loan?.direction ?? 'borrowed');
   const [person, setPerson] = useState(loan?.person ?? defaultPerson ?? '');
@@ -243,28 +223,32 @@ function LoanForm({ loan, defaultPerson, onSave, onCancel }: { loan?: Loan; defa
   const [dueDate, setDueDate] = useState(loan?.due_date ?? '');
   const [notes, setNotes] = useState(loan?.notes ?? '');
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty({ direction, person, amount, accountId, date, dueDate, notes });
 
   const handleSave = async () => {
     const amt = parseFloat(amount);
-    if (!person.trim()) return showToast("Enter the friend's name", 'error');
-    if (!amt || amt <= 0) return showToast('Enter a valid amount', 'error');
-    if (!accountId) return showToast('Select an account', 'error');
+    if (!person.trim()) return showToast('Enter a name', 'error');
+    if (!amt || amt <= 0) return showToast('Enter an amount', 'error');
+    if (!accountId) return showToast('Pick an account', 'error');
     setSaving(true);
     try {
-      if (loan) {
-        await api.loans.update({ id: loan.id, person: person.trim(), amount: amt, due_date: dueDate || undefined, notes });
-        showToast('Loan updated');
-      } else {
-        await api.loans.create({ person: person.trim(), direction, amount: amt, account_id: accountId, date, due_date: dueDate || undefined, notes });
-        showToast('Loan added');
-      }
-      onSave();
+      if (loan) await api.loans.update({ id: loan.id, person: person.trim(), amount: amt, due_date: dueDate || undefined, notes });
+      else await api.loans.create({ person: person.trim(), direction, amount: amt, account_id: accountId, date, due_date: dueDate || undefined, notes });
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="space-y-4">
+    <FormSheet title={loan ? 'Edit loan' : defaultPerson ? `Add loan with ${defaultPerson}` : 'Add loan'} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
+      {onSplitBill && (
+        <button type="button" onClick={onSplitBill}
+          style={{ ...linkBtn, width: '100%', gap: 8, padding: '9px 12px', borderRadius: 'var(--radius)', background: 'var(--clay-tint)', color: 'var(--clay-ink)', fontWeight: 600 }}>
+          <Receipt size={14} /> A friend paid for something, or you paid for them? Split a bill instead
+        </button>
+      )}
       {/* Direction is fixed once a loan exists, since it decides which way money moved. */}
       <Segmented value={direction} onChange={setDirection} disabled={!!loan}
         options={[['borrowed', 'I borrowed'], ['lent', 'I lent']]} />
@@ -308,17 +292,11 @@ function LoanForm({ loan, defaultPerson, onSave, onCancel }: { loan?: Loan; defa
               ? 'Adds the money to the account. It is not counted as income.'
               : 'Takes the money out of the account. It is not counted as an expense.'}
       </p>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : loan ? 'Update Loan' : 'Add Loan'}
-        </button>
-      </div>
-    </div>
+    </FormSheet>
   );
 }
 
-function ReturnForm({ loan, onSave, onCancel }: { loan: Loan; onSave: () => void; onCancel: () => void }) {
+function ReturnForm({ loan, onSaved, onClose }: { loan: Loan; onSaved: () => void; onClose: () => void }) {
   const { accounts, showToast } = useAppStore();
   const remaining = Math.max(0, left(loan));
   const [amount, setAmount] = useState(remaining > 0 ? remaining.toString() : '');
@@ -327,22 +305,24 @@ function ReturnForm({ loan, onSave, onCancel }: { loan: Loan; onSave: () => void
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const borrowed = loan.direction === 'borrowed';
+  const dirty = useDirty({ amount, accountId, date, notes });
 
   const handleSave = async () => {
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return showToast('Enter a valid amount', 'error');
-    if (!accountId) return showToast('Select an account', 'error');
+    if (!amt || amt <= 0) return showToast('Enter an amount', 'error');
+    if (!accountId) return showToast('Pick an account', 'error');
     setSaving(true);
     try {
       await api.loans.addRepayment({ loan_id: loan.id, amount: amt, account_id: accountId, date, notes });
-      showToast('Return recorded');
-      onSave();
+      showToast('Saved');
+      onSaved();
+      onClose();
     } catch (e: any) { showToast(e?.toString() ?? 'Error', 'error'); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="space-y-4">
+    <FormSheet title={borrowed ? `Pay back ${loan.person}` : `${loan.person} paid you back`} onClose={onClose} onSubmit={handleSave} dirty={dirty} saving={saving}>
       <div>
         <label className="label mb-1.5 block">{borrowed ? `Amount you paid back to ${loan.person}` : `Amount ${loan.person} gave back`}</label>
         <MoneyInput value={amount} onChange={e => setAmount(e.target.value)} min="0" step="0.01" autoFocus />
@@ -364,17 +344,10 @@ function ReturnForm({ loan, onSave, onCancel }: { loan: Loan; onSave: () => void
         <label className="label mb-1.5 block">Notes</label>
         <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="input" placeholder="Optional" />
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary">
-          {saving ? 'Saving…' : 'Record Return'}
-        </button>
-      </div>
-    </div>
+    </FormSheet>
   );
 }
 
-const iconBtn = { color: 'var(--ink-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex' } as const;
 const mono = { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' } as const;
 const linkBtn = {
   display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0,
@@ -392,39 +365,6 @@ function Pill({ tone, children }: { tone: 'positive' | 'negative' | 'clay'; chil
       borderRadius: 999, padding: '2px 8px', fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
       background: bg, color: fg,
     }}>{children}</span>
-  );
-}
-
-interface MenuItem { label: string; icon: React.ReactNode; onSelect: () => void; danger?: boolean }
-
-/** Edit and delete live behind a "⋯" menu so the rows stay calm. */
-function RowMenu({ items, className }: { items: MenuItem[]; className?: string }) {
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <button className={`${className ?? ''} hover:bg-[var(--paper-sunk)] data-[state=open]:bg-[var(--paper-sunk)] data-[state=open]:opacity-100`}
-          style={iconBtn} aria-label="More actions" onClick={e => e.stopPropagation()}>
-          <Ellipsis size={15} />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content align="end" sideOffset={4} style={{
-          zIndex: 60, minWidth: 160, padding: 4, background: 'var(--surface)', border: '1px solid var(--line)',
-          borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)',
-        }}>
-          {items.map(it => (
-            <DropdownMenu.Item key={it.label} onSelect={it.onSelect}
-              className="outline-none cursor-pointer data-[highlighted]:bg-[var(--paper-sunk)]"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 'var(--radius-sm)',
-                fontFamily: 'var(--font-sans)', fontSize: 13, color: it.danger ? 'var(--negative)' : 'var(--ink)',
-              }}>
-              {it.icon} {it.label}
-            </DropdownMenu.Item>
-          ))}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
   );
 }
 
@@ -501,7 +441,7 @@ function LoanRow({ loan, friendName, returns, onEdit, onDelete, onReturn, onDele
                 <span style={{ color: 'var(--ink-faint)' }}> · {formatDate(r.date)}{!r.offset_id && r.account_name ? ` · ${r.account_name}` : ''}{r.notes ? ` · ${r.notes}` : ''}</span>
               </span>
               <span style={{ ...mono, fontSize: 13, color: 'var(--ink-muted)' }}>{formatCurrency(r.amount)}</span>
-              <RowMenu className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" items={[
+              <RowMenu items={[
                 r.offset_id
                   ? { label: 'Undo cancel-out', icon: <Undo2 size={13} />, onSelect: () => onDeleteReturn(r), danger: true }
                   : { label: 'Delete', icon: <Trash2 size={13} />, onSelect: () => onDeleteReturn(r), danger: true },
@@ -821,39 +761,24 @@ export function Loans() {
         </div>
       </div>
 
-      <Modal open={showForm} onClose={closeForm} title={editLoan ? 'Edit Loan' : newLoanPerson ? `New Loan with ${newLoanPerson}` : 'New Loan'} size="sm">
-        {!editLoan && (
-          <button onClick={() => { const p = newLoanPerson; closeForm(); openBill(p); }}
-            style={{ ...linkBtn, width: '100%', gap: 8, marginBottom: 14, padding: '9px 12px', borderRadius: 'var(--radius)', background: 'var(--clay-tint)', color: 'var(--clay-ink)', fontWeight: 600 }}>
-            <Receipt size={14} /> A friend paid for something, or you paid for them? Split a bill instead
-          </button>
-        )}
+      {showForm && (
         <LoanForm
           key={editLoan?.id ?? newLoanPerson ?? 'new'}
           loan={editLoan}
           defaultPerson={newLoanPerson}
-          onSave={() => { closeForm(); refresh(); }}
-          onCancel={closeForm}
+          onSaved={refresh}
+          onClose={closeForm}
+          onSplitBill={editLoan ? undefined : () => { const p = newLoanPerson; closeForm(); openBill(p); }}
         />
-      </Modal>
+      )}
 
-      <Modal open={billPerson !== undefined} onClose={closeBill} title={billPerson ? `Split a bill with ${billPerson}` : 'Split a bill'} size="sm">
-        <SharedBillForm
-          key={billPerson ?? 'closed'}
-          defaultPerson={billPerson || undefined}
-          onSave={() => { closeBill(); refresh(); }}
-          onCancel={closeBill}
-        />
-      </Modal>
+      {billPerson !== undefined && (
+        <SharedBillForm key={billPerson} defaultPerson={billPerson || undefined} onSaved={refresh} onClose={closeBill} />
+      )}
 
-      <Modal open={!!returnLoan} onClose={() => setReturnLoan(undefined)}
-        title={returnLoan ? (returnLoan.direction === 'borrowed' ? `Pay back ${returnLoan.person}` : `${returnLoan.person} paid you back`) : ''} size="sm">
-        {returnLoan && (
-          <ReturnForm loan={returnLoan}
-            onSave={() => { setReturnLoan(undefined); refresh(); }}
-            onCancel={() => setReturnLoan(undefined)} />
-        )}
-      </Modal>
+      {returnLoan && (
+        <ReturnForm key={returnLoan.id} loan={returnLoan} onSaved={refresh} onClose={() => setReturnLoan(undefined)} />
+      )}
 
       <Modal open={!!cancelOutFriend} onClose={() => setCancelOutKey(undefined)} title={cancelOutFriend ? `Cancel out with ${cancelOutFriend.name}` : ''} size="sm"
         footer={<>

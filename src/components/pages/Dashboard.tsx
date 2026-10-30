@@ -112,7 +112,7 @@ function ProgressBar({ label, meta, value, max, color }: {
 }
 
 export function Dashboard() {
-  const { dashboard, transactions, fetchDashboard, fetchTransactions, setPage } = useAppStore();
+  const { dashboard, transactions, fetchDashboard, fetchTransactions, setPage, openQuickAdd, dataVersion } = useAppStore();
   const [daily, setDaily] = useState<DailySpending[]>([]);
   const [byCat, setByCat] = useState<SpendingByCategory[]>([]);
 
@@ -122,7 +122,7 @@ export function Dashboard() {
     const { from, to } = getMonthDateRange(currentYear(), currentMonth());
     api.analytics.daily(from, to).then(setDaily);
     api.analytics.byCategory(from, to, 'expense').then(d => setByCat(d.slice(0, 4)));
-  }, []);
+  }, [dataVersion]);
 
   const d = dashboard;
   const budgetPct = d && d.month_budget_total > 0
@@ -157,11 +157,11 @@ export function Dashboard() {
           </h1>
         </div>
         <button
-          onClick={() => setPage('transactions')}
+          onClick={() => openQuickAdd('transaction')}
           className="btn-primary"
           style={{ display: 'flex', alignItems: 'center', gap: 7 }}
         >
-          <Plus size={15} /> Add Transaction
+          <Plus size={15} /> Add transaction
         </button>
       </header>
 

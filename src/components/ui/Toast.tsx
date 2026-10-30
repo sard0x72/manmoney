@@ -18,8 +18,9 @@ export function Toast() {
     info:    'var(--clay)',
   };
 
+  // Keyed by id so a new toast replays the slide-in instead of swapping text in place.
   return (
-    <div className="fixed bottom-4 right-4 z-[100] animate-slide-up">
+    <div key={toast.id} className="fixed bottom-4 right-4 z-[100] animate-slide-up" role="status" aria-live="polite">
       <div
         className={cn('card shadow-modal flex items-center gap-3 px-4 py-3 min-w-[260px] max-w-sm')}
         style={{ borderColor: borderColors[toast.type] }}
@@ -28,6 +29,7 @@ export function Toast() {
         <p className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>{toast.message}</p>
         <button
           onClick={clearToast}
+          aria-label="Dismiss"
           className="transition-colors"
           style={{ color: 'var(--text-secondary)' }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
