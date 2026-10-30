@@ -95,6 +95,10 @@ export interface Loan {
   due_date?: string;
   notes: string;
   created_at: string;
+  /** Set when the loan came from a shared bill: the expense recorded with it. */
+  transaction_id?: string;
+  expense_amount?: number;
+  category_name?: string;
 }
 
 export interface LoanRepayment {

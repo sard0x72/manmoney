@@ -1,4 +1,4 @@
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{Manager, State};
@@ -115,6 +115,10 @@ pub struct Loan {
     pub due_date: Option<String>,
     pub notes: String,
     pub created_at: String,
+    /// The expense this loan came with, when it was recorded as a shared bill.
+    pub transaction_id: Option<String>,
+    pub expense_amount: Option<f64>,
+    pub category_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -298,6 +302,14 @@ fn setup_database(conn: &Connection) -> rusqlite::Result<()> {
         .exists([])?;
     if !has_offset_col {
         conn.execute_batch("ALTER TABLE loan_repayments ADD COLUMN offset_id TEXT")?;
+    }
+
+    // A loan from a shared bill points at the expense recorded with it.
+    let has_loan_tx_col = conn
+        .prepare("SELECT 1 FROM pragma_table_info('loans') WHERE name='transaction_id'")?
+        .exists([])?;
+    if !has_loan_tx_col {
+        conn.execute_batch("ALTER TABLE loans ADD COLUMN transaction_id TEXT")?;
     }
 
     seed_defaults(conn)?;
@@ -632,6 +644,8 @@ fn delete_transaction(state: State<DbState>, id: String) -> Result<(), String> {
         "expense" => { conn.execute("UPDATE accounts SET balance=balance+?1 WHERE id=?2", params![old_amount, old_acct]).map_err(|e| e.to_string())?; }
         _ => {}
     }
+    // A shared-bill loan keeps its debt; it just stops pointing at the deleted expense.
+    conn.execute("UPDATE loans SET transaction_id=NULL WHERE transaction_id=?1", params![id]).map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM transactions WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -838,14 +852,18 @@ fn get_loans(state: State<DbState>) -> Result<Vec<Loan>, String> {
     let mut stmt = conn.prepare(r#"
         SELECT l.id,l.person,l.direction,l.amount,
                COALESCE((SELECT SUM(r.amount) FROM loan_repayments r WHERE r.loan_id=l.id),0.0),
-               l.account_id,a.name,l.date,l.due_date,l.notes,l.created_at
+               l.account_id,a.name,l.date,l.due_date,l.notes,l.created_at,
+               t.id,t.amount,c.name
         FROM loans l LEFT JOIN accounts a ON l.account_id=a.id
+        LEFT JOIN transactions t ON l.transaction_id=t.id
+        LEFT JOIN categories c ON t.category_id=c.id
         ORDER BY l.date DESC,l.created_at DESC
     "#).map_err(|e| e.to_string())?;
     let result = stmt.query_map([], |r| Ok(Loan {
         id: r.get(0)?, person: r.get(1)?, direction: r.get(2)?, amount: r.get(3)?, returned: r.get(4)?,
         account_id: r.get(5)?, account_name: r.get(6)?, date: r.get(7)?, due_date: r.get(8)?,
         notes: r.get(9)?, created_at: r.get(10)?,
+        transaction_id: r.get(11)?, expense_amount: r.get(12)?, category_name: r.get(13)?,
     })).map_err(|e| e.to_string())?
     .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
     Ok(result)
@@ -868,30 +886,96 @@ fn create_loan(
     tx.commit().map_err(|e| e.to_string())
 }
 
+/// Records a bill shared with a friend: your share as an expense, and the rest as a loan.
+///
+/// - `paid_by = "friend"`: they paid, you owe them your share. The expense and the
+///   borrowed loan land on the same account, so its balance doesn't move.
+/// - `paid_by = "me"`: you paid the whole bill. Your share is an expense, theirs is a
+///   loan they owe you, and the account goes down by the full total.
+#[tauri::command]
+fn create_shared_expense(
+    state: State<DbState>,
+    person: String, paid_by: String, total: f64, my_share: f64, account_id: String,
+    category_id: String, date: String, due_date: Option<String>, notes: String,
+) -> Result<(), String> {
+    const EPS: f64 = 0.000001;
+    if total <= EPS || my_share < 0.0 || my_share > total + EPS {
+        return Err("Your share must be between nothing and the whole bill".into());
+    }
+    let (direction, loan_amount, tx_note) = match paid_by.as_str() {
+        "friend" => ("borrowed", my_share, format!("Paid by {}", person)),
+        "me" => ("lent", total - my_share, format!("Split with {}", person)),
+        _ => return Err(format!("Unknown payer: {}", paid_by)),
+    };
+    if loan_amount <= EPS {
+        return Err(if paid_by == "friend" { "Your share can't be zero when they paid".into() }
+                   else { "Nothing is owed when your share is the whole bill".into() });
+    }
+    let sign = loan_sign(direction)?;
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let now = Utc::now().to_rfc3339();
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+
+    let expense_id = if my_share > EPS {
+        let id = Uuid::new_v4().to_string();
+        let note = if notes.trim().is_empty() { tx_note } else { format!("{} · {}", notes.trim(), tx_note.to_lowercase()) };
+        tx.execute(
+            "INSERT INTO transactions(id,account_id,category_id,transaction_type,amount,date,notes,payee,payment_method,tags,is_recurring,created_at,updated_at) VALUES(?1,?2,?3,'expense',?4,?5,?6,'','cash','',0,?7,?7)",
+            params![id, account_id, category_id, my_share, date, note, now],
+        ).map_err(|e| e.to_string())?;
+        adjust_balance(&tx, &account_id, -my_share)?;
+        Some(id)
+    } else { None };
+
+    tx.execute(
+        "INSERT INTO loans(id,person,direction,amount,account_id,date,due_date,notes,created_at,transaction_id) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+        params![Uuid::new_v4().to_string(), person, direction, loan_amount, account_id, date, due_date, notes, now, expense_id],
+    ).map_err(|e| e.to_string())?;
+    adjust_balance(&tx, &account_id, sign * loan_amount)?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
 /// Edits a loan. A changed amount adjusts the original account by the difference;
-/// the account and direction are fixed once created.
+/// the account and direction are fixed once created. When a friend paid a bill for
+/// you, the linked expense is your share, so it follows the new amount.
 #[tauri::command]
 fn update_loan(state: State<DbState>, id: String, person: String, amount: f64, due_date: Option<String>, notes: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
-    let (direction, old_amount, account_id): (String, f64, String) = conn.query_row(
-        "SELECT direction,amount,account_id FROM loans WHERE id=?1", params![id],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
+    // linked: (expense id, its account, its current amount)
+    let (direction, old_amount, account_id, linked): (String, f64, String, Option<(String, String, f64)>) = conn.query_row(
+        "SELECT l.direction,l.amount,l.account_id,t.id,t.account_id,t.amount FROM loans l LEFT JOIN transactions t ON l.transaction_id=t.id WHERE l.id=?1",
+        params![id],
+        |r| {
+            let t_id: Option<String> = r.get(3)?;
+            let t_acct: Option<String> = r.get(4)?;
+            let t_amount: Option<f64> = r.get(5)?;
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, t_id.zip(t_acct).zip(t_amount).map(|((i, a), m)| (i, a, m))))
+        }).map_err(|e| e.to_string())?;
     let sign = loan_sign(&direction)?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     tx.execute("UPDATE loans SET person=?1,amount=?2,due_date=?3,notes=?4 WHERE id=?5",
         params![person, amount, due_date, notes, id]).map_err(|e| e.to_string())?;
     adjust_balance(&tx, &account_id, sign * (amount - old_amount))?;
+    if let (Some((t_id, t_acct, t_amount)), "borrowed") = (linked, direction.as_str()) {
+        tx.execute("UPDATE transactions SET amount=?1,updated_at=?2 WHERE id=?3",
+            params![amount, Utc::now().to_rfc3339(), t_id]).map_err(|e| e.to_string())?;
+        adjust_balance(&tx, &t_acct, -(amount - t_amount))?;
+    }
     tx.commit().map_err(|e| e.to_string())
 }
 
 /// Deletes a loan and its returns, undoing every balance change they made.
-/// Any cancel-out it was part of is undone on the other loans too.
+/// Any cancel-out it was part of is undone on the other loans too, and the
+/// expense of a shared bill goes with it.
 #[tauri::command]
 fn delete_loan(state: State<DbState>, id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     let (direction, amount, account_id): (String, f64, String) = conn.query_row(
         "SELECT direction,amount,account_id FROM loans WHERE id=?1", params![id],
         |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(|e| e.to_string())?;
+    let expense: Option<(String, f64, String)> = conn.query_row(
+        "SELECT t.id,t.amount,t.account_id FROM loans l JOIN transactions t ON l.transaction_id=t.id WHERE l.id=?1 AND t.transaction_type='expense'",
+        params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).optional().map_err(|e| e.to_string())?;
     let sign = loan_sign(&direction)?;
     let repayments: Vec<(f64, String, Option<String>)> = {
         let mut stmt = conn.prepare("SELECT amount,account_id,offset_id FROM loan_repayments WHERE loan_id=?1").map_err(|e| e.to_string())?;
@@ -908,6 +992,10 @@ fn delete_loan(state: State<DbState>, id: String) -> Result<(), String> {
             }
             None => adjust_balance(&tx, &r_account, sign * r_amount)?,
         }
+    }
+    if let Some((t_id, t_amount, t_account)) = expense {
+        adjust_balance(&tx, &t_account, t_amount)?;
+        tx.execute("DELETE FROM transactions WHERE id=?1", params![t_id]).map_err(|e| e.to_string())?;
     }
     tx.execute("DELETE FROM loan_repayments WHERE loan_id=?1", params![id]).map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM loans WHERE id=?1", params![id]).map_err(|e| e.to_string())?;
@@ -1244,7 +1332,7 @@ pub fn run() {
             get_tuition_fees, create_tuition_fee, update_tuition_fee, delete_tuition_fee,
             get_tuition_payments, add_tuition_payment,
             get_loans, create_loan, update_loan, delete_loan,
-            get_loan_repayments, add_loan_repayment, delete_loan_repayment, offset_loans,
+            get_loan_repayments, add_loan_repayment, delete_loan_repayment, offset_loans, create_shared_expense,
             get_dashboard_data, get_spending_by_category, get_daily_spending,
             get_recurring_transactions, create_recurring_transaction, delete_recurring_transaction,
             export_transactions_csv, get_db_path,

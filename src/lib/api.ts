@@ -211,6 +211,22 @@ export const api = {
         notes: data.notes,
       }),
     deleteRepayment: (id: string) => invoke<void>('delete_loan_repayment', { id }),
+    /** A bill shared with a friend: your share becomes an expense, the rest a loan. */
+    createShared: (data: {
+      person: string; paid_by: 'friend' | 'me'; total: number; my_share: number;
+      account_id: string; category_id: string; date: string; due_date?: string; notes: string;
+    }) =>
+      invoke<void>('create_shared_expense', {
+        person: data.person,
+        paidBy: data.paid_by,
+        total: data.total,
+        myShare: data.my_share,
+        accountId: data.account_id,
+        categoryId: data.category_id,
+        date: data.date,
+        dueDate: data.due_date,
+        notes: data.notes,
+      }),
     /** Cancels a friend's loans against each other; resolves to the amount cancelled. */
     offset: (loanIds: string[], date: string) => invoke<number>('offset_loans', { loanIds, date }),
   },

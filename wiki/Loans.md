@@ -11,6 +11,30 @@ Click *New Loan* and choose which way the money went:
 
 Then fill in the friend's name, the amount, the account the money went into (or came out of), the date, and optionally a **return by** date and a note.
 
+## Splitting a bill
+
+When a friend pays for something of yours, or you pay for them, use **Split a bill** instead of a plain loan. It's at the top of the page and at the bottom of every friend's card. Fill in:
+
+- **Who paid?** Your friend or you.
+- **Total bill**, and **how to split** it: *All mine* (they covered you), *All theirs* (you covered them), *Half each*, or a *Custom* share.
+- The **category** for your share, such as Food, and the **account**.
+
+A box at the bottom shows what will be recorded before you save. Your share becomes an **expense**, so it counts in your [[Budgets]] and [[Analytics]]. The rest becomes a **loan** between you:
+
+| What happened | What gets recorded | Account balance |
+|---|---|---|
+| Vali paid $50 for your food | $50 Food expense + you owe Vali $50 | No change: you haven't paid anything yet |
+| You paid an $80 dinner, half each | $40 Food expense + Vali owes you $40 | Down $80, the whole bill you paid |
+| You paid $30 for Vali's taxi | Vali owes you $30, no expense | Down $30 |
+
+When you pay Vali back, record it with **Pay back** on the loan. Don't add another expense, or the meal would be counted twice.
+
+On the friend's card, these loans show a receipt icon and their category, for example "Vali paid for you $50 · Food".
+
+- **Deleting** the loan also deletes the expense it came with.
+- **Editing** the amount of a bill your friend paid also changes your expense to match.
+- **Deleting the expense** on the [[Transactions]] page keeps the loan, since you still owe the money, and unlinks it from the expense.
+
 ## How loans affect your balances
 
 - **Borrowing** adds the money to the account you picked. **Lending** takes it out.
